@@ -45,7 +45,8 @@ function App() {
   const [tasks, setTasks] = useState<LeadTask[]>([]);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDue, setTaskDue] = useState(localToday());
-  const [taskFilter, setTaskFilter] = useState<'OPEN' | 'ALL' | 'DONE'>('OPEN');
+  const [taskFilter, setTaskFilter] = useState<'OPEN' | 'ALL' | 'DONE' | 'OVERDUE' | 'TODAY' | 'UPCOMING'>('OPEN');
+  const [taskSearch, setTaskSearch] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [search, setSearch] = useState('');
@@ -61,7 +62,23 @@ function App() {
 
   const canEdit = account?.role === 'ADMIN';
   const selected = leads.find(lead => lead.id === selectedId) ?? null;
-  const shownTasks = useMemo(() => tasks.filter(task => taskFilter === 'ALL' || task.status === taskFilter), [tasks, taskFilter]);
+  const shownTasks = useMemo(() => {
+    const today = localToday();
+    const query = taskSearch.trim().toLocaleLowerCase();
+    return tasks.filter(task => {
+      const matchesStatus = taskFilter === 'ALL'
+        || (taskFilter === 'OPEN' && task.status === 'OPEN')
+        || (taskFilter === 'DONE' && task.status === 'DONE')
+        || (task.status === 'OPEN' && (
+          (taskFilter === 'OVERDUE' && task.dueDate < today)
+          || (taskFilter === 'TODAY' && task.dueDate === today)
+          || (taskFilter === 'UPCOMING' && task.dueDate > today)));
+      const customer = leads.find(lead => lead.id === task.leadId);
+      const matchesSearch = !query || [task.title, customer?.name ?? '', customer?.email ?? '']
+        .some(value => value.toLocaleLowerCase().includes(query));
+      return matchesStatus && matchesSearch;
+    }).sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.id - b.id);
+  }, [tasks, taskFilter, taskSearch, leads]);
   const overdue = tasks.filter(task => task.status === 'OPEN' && task.dueDate < localToday()).length;
   const upcoming = tasks.filter(task => task.status === 'OPEN' && task.dueDate >= localToday()).length;
   const wonCount = leads.filter(lead => lead.status === 'WON').length;
@@ -100,6 +117,8 @@ function App() {
     setPasswordMessage('');
     setLeads([]);
     setTasks([]);
+    setTaskFilter('OPEN');
+    setTaskSearch('');
     setSelectedId(null);
     setNote('');
     setActivity([]);
@@ -471,6 +490,9 @@ function App() {
 
   function openLead(lead: Lead) {
     setSelectedId(lead.id);
+    window.requestAnimationFrame(() => {
+      document.getElementById('lead-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     setNote(lead.note ?? '');
     setActivity([]);
     void loadActivity(lead.id);
@@ -592,17 +614,34 @@ function App() {
         </section>
         <section id="tasks" className="panel">
           <div className="panel-header"><h2>Follow-up tasks</h2><span>{overdue} overdue · {upcoming} upcoming</span></div>
-          <div className="toolbar">
-            <label><span>Show tasks</span><select value={taskFilter} onChange={e => setTaskFilter(e.target.value as 'OPEN' | 'ALL' | 'DONE')}>
-              <option value="OPEN">Open</option><option value="ALL">All</option><option value="DONE">Completed</option>
-            </select></label>
+          <div className="task-summary" aria-label="Follow-up priorities">
+            <button type="button" className={taskFilter === 'OVERDUE' ? 'task-priority active' : 'task-priority'} aria-pressed={taskFilter === 'OVERDUE'} onClick={() => setTaskFilter('OVERDUE')}>
+              <span>Overdue</span><strong>{tasks.filter(task => task.status === 'OPEN' && task.dueDate < localToday()).length}</strong>
+            </button>
+            <button type="button" className={taskFilter === 'TODAY' ? 'task-priority active' : 'task-priority'} aria-pressed={taskFilter === 'TODAY'} onClick={() => setTaskFilter('TODAY')}>
+              <span>Due today</span><strong>{tasks.filter(task => task.status === 'OPEN' && task.dueDate === localToday()).length}</strong>
+            </button>
+            <button type="button" className={taskFilter === 'UPCOMING' ? 'task-priority active' : 'task-priority'} aria-pressed={taskFilter === 'UPCOMING'} onClick={() => setTaskFilter('UPCOMING')}>
+              <span>Later</span><strong>{tasks.filter(task => task.status === 'OPEN' && task.dueDate > localToday()).length}</strong>
+            </button>
           </div>
+          <div className="toolbar task-toolbar">
+            <label><span>Show tasks</span><select value={taskFilter} onChange={e => setTaskFilter(e.target.value as 'OPEN' | 'ALL' | 'DONE' | 'OVERDUE' | 'TODAY' | 'UPCOMING')}>
+              <option value="OPEN">Open</option><option value="OVERDUE">Overdue</option><option value="TODAY">Due today</option><option value="UPCOMING">Later</option><option value="DONE">Completed</option><option value="ALL">All</option>
+            </select></label>
+            <label><span>Search follow-ups</span><input type="search" value={taskSearch} onChange={e => setTaskSearch(e.target.value)} placeholder="Task, customer or email" /></label>
+            <button type="button" className="secondary-button" onClick={() => { setTaskFilter('OPEN'); setTaskSearch(''); }}>Reset task filters</button>
+          </div>
+          <p className="analytics-caption task-count" role="status">{shownTasks.length} matching task{shownTasks.length === 1 ? '' : 's'} · sorted by due date</p>
           {shownTasks.length === 0 ? <p className="empty">No tasks in this view. Open a lead to create a follow-up.</p> :
             <div className="table-wrap"><table>
               <thead><tr><th>Task</th><th>Customer</th><th>Due</th><th>Status</th></tr></thead>
               <tbody>{shownTasks.map(task => <tr key={task.id}>
                 <td><strong>{task.title}</strong></td>
-                <td>{leadName(task.leadId)}</td>
+                <td><button type="button" className="task-lead-link" onClick={() => {
+                  const customer = leads.find(lead => lead.id === task.leadId);
+                  if (customer) openLead(customer);
+                }}>{leadName(task.leadId)}</button></td>
                 <td><span className={task.status === 'OPEN' && task.dueDate < localToday() ? 'overdue' : ''}>{task.dueDate}{task.status === 'OPEN' && task.dueDate < localToday() ? ' · Overdue' : ''}</span></td>
                 <td>{canEdit ? <button disabled={saving} type="button" className="secondary-button" onClick={() => void updateTask(task.id, task.status === 'OPEN' ? 'DONE' : 'OPEN')}>
                   {task.status === 'OPEN' ? 'Mark done' : 'Reopen'}
@@ -670,7 +709,7 @@ function App() {
           </table></div>}
           <p className="analytics-caption">Local development audit history of successful security actions. This is not tamper-proof.</p>
         </section>}
-        {selected && <section className="panel lead-detail" aria-label="Lead details">
+        {selected && <section id="lead-detail" className="panel lead-detail" aria-label="Lead details">
           <div className="panel-header">
             <div><span className="eyebrow">LEAD DETAILS</span><h2>{selected.name}</h2></div>
             <button type="button" className="secondary-button" onClick={() => { setSelectedId(null); setActivity([]); }}>Close</button>

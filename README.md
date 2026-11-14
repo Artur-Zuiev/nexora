@@ -248,3 +248,7 @@ The local CRM dashboard has a refined responsive visual hierarchy, improved metr
 ## Local backup and recovery tools
 
 See [local backup & recovery instructions](docs/local-backups.md). `python scripts/db_backup.py backup --output backups/nexora-demo.dump` creates a PostgreSQL custom-format archive with a SHA-256 companion file; `verify` checks integrity, and `restore` requires an explicit confirmation and creates a **new** database without overwriting `nexora`. A dedicated GitHub Action tests the backup and restore with synthetic demo data. Backups contain sensitive records and password hashes; store privately, never in Git. These utilities are local-only, not production disaster recovery, and no paid storage/provider is added.
+
+## Follow-up task workspace improvements
+
+The React workspace now groups open follow-ups by **overdue**, **due today**, and **later**, with counters and selectable priority filters. You can also display all or completed tasks and search by task title, customer name, or customer email. The task list is ordered by due date, and clicking a customer from a task opens their CRM record. Completion and reopening still use the existing tenant-scoped Java REST API, and read-only members cannot modify tasks. The filters run locally over loaded demo data; no scheduled reminders or email delivery are included. A Chromium E2E scenario verifies creating a synthetic task, filtering, searching, navigating to the customer and marking it complete.

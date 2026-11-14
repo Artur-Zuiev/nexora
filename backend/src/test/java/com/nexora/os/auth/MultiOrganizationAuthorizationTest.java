@@ -57,6 +57,14 @@ class MultiOrganizationAuthorizationTest {
         assertTrue(containsId(adminView, localLead));
         assertFalse(containsId(adminView, foreignLead));
 
+        JsonNode memberInfo = json.readTree(mvc.perform(get("/api/me")
+                .header(HttpHeaders.AUTHORIZATION, basic(user, password)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertEquals(user, memberInfo.path("username").asText());
+        assertEquals(org, memberInfo.path("organizationId").asText());
+        assertEquals("MEMBER", memberInfo.path("role").asText());
+        assertFalse(memberInfo.has("passwordHash"));
+
         JsonNode memberView = json.readTree(mvc.perform(get("/api/leads")
                 .header(HttpHeaders.AUTHORIZATION, basic(user, password)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());

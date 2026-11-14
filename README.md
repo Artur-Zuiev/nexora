@@ -240,3 +240,7 @@ E2E_ADMIN_PASSWORD='your-local-test-admin-password' npm run test:e2e
 ```
 
 On PowerShell, set `$env:E2E_ADMIN_PASSWORD='your-local-test-admin-password'` before running `npm run test:e2e`. The frontend test runner starts its own localhost Vite server and proxies API calls to `127.0.0.1:8080`. Tests create disposable records; use a dedicated throwaway database, never a real/customer database. GitHub Actions runs these checks in a separate free/open-source Chromium job with isolated Postgres and hard-coded **CI-only** credentials. Playwright trace/video/screenshots and artifact upload are intentionally disabled to avoid exposing credentials/cookies. GitHub-hosted runner usage still counts toward your account's applicable Actions quotas; no paid service or upgrade was enabled.
+
+## Dashboard interface refresh
+
+The local CRM dashboard has a refined responsive visual hierarchy, improved metric cards, focus-visible input/button styling, accessible actual sidebar links to overview, pipeline, follow-ups, analytics, team, audit history, and account security, plus a horizontally scrollable navigation bar on mobile. The dashboard retains the existing account roles and business logic. Playwright exercises navigation on desktop and at a narrow mobile viewport. No image, design library, CDN, paid assets or external services were introduced.

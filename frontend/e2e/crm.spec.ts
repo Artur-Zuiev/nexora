@@ -62,3 +62,28 @@ test('new member can read CRM but cannot edit or manage team', async ({ page }) 
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 });
+
+test('sidebar navigates to real workspace sections', async ({ page }) => {
+  await signIn(page);
+  await page.getByRole('navigation', { name: 'Main navigation' })
+    .getByRole('link', { name: 'Lead pipeline' }).click();
+  await expect(page).toHaveURL(/#pipeline$/);
+  await expect(page.locator('#pipeline').getByRole('heading', { name: 'Lead pipeline' })).toBeVisible();
+
+  await page.getByRole('navigation', { name: 'Main navigation' })
+    .getByRole('link', { name: 'Account security' }).click();
+  await expect(page).toHaveURL(/#account-security$/);
+  await expect(page.locator('#account-security').getByRole('heading', { name: 'Account security' })).toBeVisible();
+});
+
+test('mobile navigation remains accessible and functional', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page);
+  const navigation = page.getByRole('navigation', { name: 'Main navigation' });
+  await expect(navigation.getByRole('link', { name: 'Follow-ups' })).toBeVisible();
+  await navigation.getByRole('link', { name: 'Follow-ups' }).click();
+  await expect(page).toHaveURL(/#tasks$/);
+  await expect(page.locator('#tasks').getByRole('heading', { name: 'Follow-up tasks' })).toBeVisible();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+});

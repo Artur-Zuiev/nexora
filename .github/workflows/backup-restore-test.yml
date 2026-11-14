@@ -1,0 +1,60 @@
+name: Local database backup and restore test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Start disposable local PostgreSQL
+        run: docker compose up -d --wait
+      - name: Wait until PostgreSQL accepts connections
+        run: |
+          for i in $(seq 1 60); do
+            if docker compose exec -T postgres pg_isready -U nexora -d nexora >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs postgres
+          exit 1
+      - name: Seed synthetic data
+        run: |
+          docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U nexora -d nexora -c \
+            "CREATE TABLE backup_smoke (id integer PRIMARY KEY, label text NOT NULL); INSERT INTO backup_smoke VALUES (1, 'synthetic-only');"
+      - name: Run backup and verify
+        run: |
+          python scripts/db_backup.py backup --output /tmp/nexora-ci-smoke.dump
+          python scripts/db_backup.py verify --input /tmp/nexora-ci-smoke.dump
+      - name: Ensure restore cannot modify existing database
+        run: |
+          if python scripts/db_backup.py restore --input /tmp/nexora-ci-smoke.dump --database nexora --confirm RESTORE:nexora; then exit 1; fi
+          if python scripts/db_backup.py restore --input /tmp/nexora-ci-smoke.dump --database e2e_restored --confirm WRONG; then exit 1; fi
+      - name: Restore to a newly created disposable database
+        run: |
+          python scripts/db_backup.py restore --input /tmp/nexora-ci-smoke.dump --database e2e_restored --confirm RESTORE:e2e_restored
+          restored=$(docker compose exec -T postgres psql -U nexora -d e2e_restored -tAc "SELECT label FROM backup_smoke WHERE id=1")
+          test "$restored" = "synthetic-only"
+          original=$(docker compose exec -T postgres psql -U nexora -d nexora -tAc "SELECT count(*) FROM backup_smoke")
+          test "$original" = "1"
+          if python scripts/db_backup.py restore --input /tmp/nexora-ci-smoke.dump --database e2e_restored --confirm RESTORE:e2e_restored; then exit 1; fi
+      - name: Refuse checksum tampering
+        run: |
+          echo '0' > /tmp/nexora-ci-smoke.dump.sha256
+          if python scripts/db_backup.py verify --input /tmp/nexora-ci-smoke.dump; then exit 1; fi
+      - name: Cleanup temporary database and backup
+        if: always()
+        run: |
+          rm -f /tmp/nexora-ci-smoke.dump /tmp/nexora-ci-smoke.dump.sha256
+          docker compose down -v

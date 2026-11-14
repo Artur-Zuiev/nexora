@@ -80,6 +80,44 @@ public class TeamController {
         return TeamMember.from(users.save(member));
     }
 
+    /**
+     * Local administrator recovery for a MEMBER who cannot remember their password.
+     * The admin must re-enter their own password to authorize this sensitive action.
+     * This is not a public account recovery workflow.
+     */
+    @PostMapping("/{id}/reset-password")
+    @Transactional
+    public void resetMemberPassword(@AuthenticationPrincipal NexoraPrincipal principal,
+                                    @PathVariable Long id,
+                                    @Valid @RequestBody ResetMemberPassword request) {
+        AppUser administrator = users.findByUsername(principal.getUsername())
+                .filter(account -> account.enabled
+                        && account.role == AppUser.Role.ADMIN
+                        && account.tenantId.equals(principal.tenantId()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required"));
+        if (!encoder.matches(request.adminPassword(), administrator.passwordHash)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Administrator password is incorrect");
+        }
+        AppUser member = users.findByIdAndTenantId(id, principal.tenantId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found"));
+        if (member.role != AppUser.Role.MEMBER) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only member passwords can be reset");
+        }
+        if (!member.enabled) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Account is disabled");
+        }
+        if (encoder.matches(request.newPassword(), member.passwordHash)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be different");
+        }
+        member.passwordHash = encoder.encode(request.newPassword());
+        users.saveAndFlush(member);
+    }
+
+    public record ResetMemberPassword(
+            @NotBlank String adminPassword,
+            @NotBlank @Size(min = 12, max = 128) String newPassword
+    ) {}
+
     public record CreateMember(
             @NotBlank
             @Size(min = 3, max = 120)

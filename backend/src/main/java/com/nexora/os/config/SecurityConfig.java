@@ -7,6 +7,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -14,6 +19,7 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 @Configuration
 public class SecurityConfig {
@@ -30,19 +36,47 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
+    }
+
+    @Bean
+    AuthenticationManager authenticationManager(UserDetailsService users, PasswordEncoder encoder) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(users);
+        provider.setPasswordEncoder(encoder);
+        return new ProviderManager(provider);
+    }
+
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                           SecurityContextRepository contexts,
+                                           AppUserRepository users) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
-                .csrf(csrf -> csrf.disable()) // Local prototype with explicit HTTP Basic headers only.
+                .csrf(csrf -> csrf.requireCsrfProtectionMatcher(request -> {
+                    String method = request.getMethod();
+                    boolean unsafe = !("GET".equals(method) || "HEAD".equals(method)
+                            || "OPTIONS".equals(method) || "TRACE".equals(method));
+                    // Existing development HTTP Basic API clients remain unchanged
+                    // in this transitional PR. Cookie session writes require CSRF.
+                    String authorization = request.getHeader("Authorization");
+                    boolean legacyBasic = authorization != null
+                            && authorization.regionMatches(true, 0, "Basic ", 0, 6);
+                    return unsafe && !legacyBasic;
+                }))
                 .sessionManagement(session -> session.sessionCreationPolicy(
-                        org.springframework.security.config.http.SessionCreationPolicy.STATELESS))
+                        org.springframework.security.config.http.SessionCreationPolicy.IF_REQUIRED))
+                .securityContext(context -> context.securityContextRepository(contexts))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/session/csrf").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/session/login").permitAll()
                         .requestMatchers("/api/team", "/api/team/**", "/api/security/events").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/leads", "/api/tasks").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/leads/**", "/api/tasks/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(new LoginAttemptFilter(), BasicAuthenticationFilter.class)
+                .addFilterBefore(new SessionFreshnessFilter(users), AuthorizationFilter.class)
                 .httpBasic(Customizer.withDefaults())
                 .build();
     }

@@ -213,3 +213,9 @@ The server checks session-backed identities against the stored account on each r
 The Vite dev server proxies `/api` requests to the locally bound Spring Boot server on `127.0.0.1:8080`. This puts cookies and API requests on one browser origin, avoiding cross-origin credential cookies. React fetches a CSRF token, signs in with `POST /api/session/login`, sends the cookie on API requests, and supplies CSRF on unsafe methods. After a page reload it checks `GET /api/me` to restore a valid server session. Logout calls `POST /api/session/logout` and clears application state; changing password also signs the user out.
 
 **Still to do:** Retire legacy HTTP Basic completely and remove its temporary CSRF exemption, add frontend browser-level end-to-end tests, harden logout under network failure, and configure HTTPS plus secure cookies for any eventual public deployment. Never deploy this version or enter real client credentials. No new paid services are used.
+
+## Default session-only authentication
+
+The standard application configuration now rejects HTTP Basic authentication. The old Basic filter and its CSRF bypass are attached **only** when the explicit `nexora.security.legacy-basic-enabled=true` setting is used. Do not enable it for normal application use. Older integration tests temporarily opt into compatibility mode through `backend/src/test/resources/application.properties`. A separate production-mode test overrides the setting to `false` and checks that Basic headers cannot authenticate or bypass CSRF. The normal React frontend already uses cookie sessions.
+
+**Remaining:** Migrate older integration tests to session login and delete the temporary compatibility mode entirely. Session cookies are local-only, with no TLS or shared session store. No paid services, deployment, or real customer data involved.

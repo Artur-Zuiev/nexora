@@ -5,6 +5,7 @@ import com.nexora.os.auth.NexoraPrincipal;
 import java.util.Locale;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -50,19 +51,20 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
                                            SecurityContextRepository contexts,
-                                           AppUserRepository users) throws Exception {
-        return http
+                                           AppUserRepository users,
+                                           @Value("${nexora.security.legacy-basic-enabled:false}") boolean legacyBasicEnabled) throws Exception {
+        http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.requireCsrfProtectionMatcher(request -> {
                     String method = request.getMethod();
                     boolean unsafe = !("GET".equals(method) || "HEAD".equals(method)
                             || "OPTIONS".equals(method) || "TRACE".equals(method));
-                    // Existing development HTTP Basic API clients remain unchanged
-                    // in this transitional PR. Cookie session writes require CSRF.
+                    // Only explicitly enabled legacy test clients may bypass CSRF.
+                    // Production defaults to requiring CSRF on all unsafe methods.
                     String authorization = request.getHeader("Authorization");
                     boolean legacyBasic = authorization != null
                             && authorization.regionMatches(true, 0, "Basic ", 0, 6);
-                    return unsafe && !legacyBasic;
+                    return unsafe && !(legacyBasicEnabled && legacyBasic);
                 }))
                 .sessionManagement(session -> session.sessionCreationPolicy(
                         org.springframework.security.config.http.SessionCreationPolicy.IF_REQUIRED))
@@ -75,9 +77,15 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/leads", "/api/tasks").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/leads/**", "/api/tasks/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
-                .addFilterBefore(new LoginAttemptFilter(), BasicAuthenticationFilter.class)
-                .addFilterBefore(new SessionFreshnessFilter(users), AuthorizationFilter.class)
-                .httpBasic(Customizer.withDefaults())
-                .build();
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(
+                        (request, response, authError) -> response.sendError(401, "Authentication required")))
+                .addFilterBefore(new SessionFreshnessFilter(users), AuthorizationFilter.class);
+        if (legacyBasicEnabled) {
+            http.addFilterBefore(new LoginAttemptFilter(), BasicAuthenticationFilter.class)
+                    .httpBasic(Customizer.withDefaults());
+        } else {
+            http.httpBasic(basic -> basic.disable());
+        }
+        return http.build();
     }
 }

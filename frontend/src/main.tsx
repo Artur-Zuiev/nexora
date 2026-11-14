@@ -502,30 +502,38 @@ function App() {
       <aside className="sidebar">
         <div className="brand">◆ Nexora <small>Business platform</small></div>
         <nav aria-label="Main navigation">
-          <span className="active">Overview</span>
-          <span className="active-section">Lead workspace</span>
-          <span className="active-section">Analytics</span>
-          {canEdit && <span className="active-section">Team</span>}
+          <span className="nav-group">WORKSPACE</span>
+          <a className="active" href="#overview">Overview</a>
+          <a href="#pipeline">Lead pipeline</a>
+          <a href="#tasks">Follow-ups</a>
+          <a href="#analytics">Analytics</a>
+          <span className="nav-group">ACCOUNT</span>
+          {canEdit && <a href="#team">Team members</a>}
+          {canEdit && <a href="#security-history">Security history</a>}
+          <a href="#account-security">Account security</a>
           <span className="planned">Automations · planned</span>
         </nav>
         <small className="sidebar-foot">Local development · CRM MVP</small>
       </aside>
-      <main>
+      <main id="overview">
         <header>
           <div>
-            <span className="eyebrow">WORKSPACE / CRM</span>
+            <span className="eyebrow">NEXORA / WORKSPACE OVERVIEW</span>
             <h1>Business overview</h1>
             <p>Organize opportunities, follow up and manage your pipeline.</p>
             <p className="account-caption">{account?.username} · {account?.role === 'ADMIN' ? 'Administrator' : 'Read-only member'} · {account?.organizationId}</p>
           </div>
-          <button type="button" className="sign-out" onClick={() => void signOut()}>Sign out</button>
+          <div className="header-actions">
+            <span className="workspace-pill"><span className="status-dot" aria-hidden="true" /> Local workspace</span>
+            <button type="button" className="sign-out" onClick={() => void signOut()}>Sign out</button>
+          </div>
         </header>
         <section className="metrics" aria-label="Pipeline summary">
-          <article><small>Total leads</small><strong>{leads.length}</strong></article>
-          <article><small>In progress</small><strong>{leads.filter(l => l.status === 'CONTACTED' || l.status === 'QUALIFIED').length}</strong></article>
-          <article><small>Won</small><strong>{leads.filter(l => l.status === 'WON').length}</strong></article>
+          <article><small>Total leads</small><strong>{leads.length}</strong><span className="metric-foot">All opportunities</span></article>
+          <article><small>In progress</small><strong>{leads.filter(l => l.status === 'CONTACTED' || l.status === 'QUALIFIED').length}</strong><span className="metric-foot">Contacted & qualified</span></article>
+          <article><small>Won</small><strong>{leads.filter(l => l.status === 'WON').length}</strong><span className="metric-foot">Closed successfully</span></article>
         </section>
-        <section className="panel analytics-panel" aria-label="CRM analytics">
+        <section id="analytics" className="panel analytics-panel" aria-label="CRM analytics">
           <div className="panel-header">
             <h2>Pipeline analytics</h2><span>Current data · all leads</span>
           </div>
@@ -549,15 +557,15 @@ function App() {
           </div>
           <p className="analytics-caption">Snapshot of the leads and tasks currently loaded in this workspace. No historical trends or revenue estimates are calculated.</p>
         </section>
-        {canEdit && <section className="panel">
-          <h2>Add a lead</h2>
+        {canEdit && <section id="create-lead" className="panel lead-create-panel">
+          <div className="panel-header"><h2>Add a lead</h2><span>New opportunity</span></div>
           <form onSubmit={add}>
             <label><span>Customer name</span><input required maxLength={120} value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" /></label>
             <label><span>Email</span><input required type="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" /></label>
             <button disabled={saving} type="submit">Add lead</button>
           </form>
         </section>}
-        <section className="panel">
+        <section id="pipeline" className="panel">
           <div className="panel-header"><h2>Lead pipeline</h2><span>{filtered.length} of {leads.length} records</span></div>
           <div className="toolbar">
             <label><span>Search leads</span><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Name, email or notes" /></label>
@@ -582,7 +590,7 @@ function App() {
               </tr>)}</tbody>
             </table></div>}
         </section>
-        <section className="panel">
+        <section id="tasks" className="panel">
           <div className="panel-header"><h2>Follow-up tasks</h2><span>{overdue} overdue · {upcoming} upcoming</span></div>
           <div className="toolbar">
             <label><span>Show tasks</span><select value={taskFilter} onChange={e => setTaskFilter(e.target.value as 'OPEN' | 'ALL' | 'DONE')}>
@@ -602,7 +610,7 @@ function App() {
               </tr>)}</tbody>
             </table></div>}
         </section>
-        <section className="panel" aria-label="Account security">
+        <section id="account-security" className="panel" aria-label="Account security">
           <h2>Account security</h2>
           <p>Change your password. You will be signed out after a successful change.</p>
           <form className="password-form" onSubmit={changeMyPassword}>
@@ -613,7 +621,7 @@ function App() {
           </form>
           {passwordMessage && <p role="status" className="error">{passwordMessage}</p>}
         </section>
-        {canEdit && <section className="panel" aria-label="Team directory">
+        {canEdit && <section id="team" className="panel" aria-label="Team directory">
           <div className="panel-header"><h2>Team members</h2><span>{team.length} accounts</span></div>
           <form className="team-create-form" onSubmit={addMember}>
             <label><span>New member username</span><input required minLength={3} maxLength={120} pattern="[a-zA-Z0-9][a-zA-Z0-9._-]*" value={memberUsername} autoComplete="off" onChange={e => setMemberUsername(e.target.value)} placeholder="alex.dev" /></label>
@@ -646,7 +654,7 @@ function App() {
           </form>}
           <p className="analytics-caption">Local development only. Account recovery requires your administrator password. Share replacements securely; no email is sent.</p>
         </section>}
-        {canEdit && <section className="panel" aria-label="Security events">
+        {canEdit && <section id="security-history" className="panel" aria-label="Security events">
           <div className="panel-header"><h2>Security history</h2>
             <button type="button" className="secondary-button" onClick={() => void loadSecurityEvents()}>Refresh events</button>
           </div>

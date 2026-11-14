@@ -60,6 +60,7 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Single-admin HTTP Basic for local development (not production auth)
 - [ ] Production authentication, password rotation, session security and granular roles
 - [ ] Tenant isolation for multiple organizations (required before adding user accounts)
+- [x] Tenant threat model and migration plan (`docs/tenant-isolation-design.md`)
 - [ ] Flyway migrations
 - [ ] Unit/integration tests, Testcontainers and frontend tests
 - [x] GitHub Actions build/test checks
@@ -104,3 +105,7 @@ The dashboard computes a **current snapshot** from the leads and tasks already l
 ## Security hardening milestone
 
 The API now returns explicit `LeadResponse` and `LeadTaskResponse` objects instead of exposing mutable JPA entities directly. Both the Spring Boot server and the Docker Compose PostgreSQL host port bind to `127.0.0.1` by default. These changes reduce accidental network exposure, **but are not production authentication, account registration, or tenant isolation**. The local-only warning remains in effect. Before multiple users are created, the data model must be migrated to organization-scoped records, and every read/write must enforce that scope on the server.
+
+## Preparing for multiple organizations
+
+See [the tenant-isolation design](docs/tenant-isolation-design.md) for the required organization-scoped data model, migration plan and two-tenant authorization tests. This milestone also adds integration tests confirming that anonymous and invalid-credential requests are rejected and that the configured local admin can access the API. **Organization scoping and multiple user accounts are still not implemented.**

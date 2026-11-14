@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.persistence.EntityManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import java.util.UUID;
@@ -28,6 +29,7 @@ class SessionAuthenticationIntegrationTest {
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder encoder;
+    @Autowired EntityManager entityManager;
 
     private String createUser() {
         String username = "session-" + UUID.randomUUID();
@@ -82,6 +84,7 @@ class SessionAuthenticationIntegrationTest {
         String username = createUser();
         LoginContext login = login(username, "session-test-password-123");
         jdbc.update("UPDATE app_users SET enabled=false WHERE username=?", username);
+        entityManager.clear(); // JDBC bypasses the @Transactional JPA first-level cache.
         mvc.perform(get("/api/me").session(login.session()))
                 .andExpect(status().isUnauthorized());
     }
@@ -92,6 +95,7 @@ class SessionAuthenticationIntegrationTest {
         LoginContext login = login(username, "session-test-password-123");
         jdbc.update("UPDATE app_users SET password_hash = ? WHERE username = ?",
                 encoder.encode("rotated-session-password-456"), username);
+        entityManager.clear(); // Force the filter to observe external DB changes.
         mvc.perform(get("/api/me").session(login.session()))
                 .andExpect(status().isUnauthorized());
     }

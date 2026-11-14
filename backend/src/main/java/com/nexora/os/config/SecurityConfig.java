@@ -37,7 +37,7 @@ public class SecurityConfig {
                         org.springframework.security.config.http.SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
-                        .requestMatchers("/api/team", "/api/team/**").hasRole("ADMIN")
+                        .requestMatchers("/api/team", "/api/team/**", "/api/security/events").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/leads", "/api/tasks").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/leads/**", "/api/tasks/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

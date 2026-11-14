@@ -42,6 +42,17 @@ class LeadValidationTest {
     }
 
     @Test
+    void rejectsOversizedNoteUpdate() {
+        assertFalse(validator.validate(new LeadController.NoteUpdate("x".repeat(2001))).isEmpty());
+        assertTrue(validator.validate(new LeadController.NoteUpdate("Follow up next week")).isEmpty());
+    }
+
+    @Test
+    void rejectsMissingNote() {
+        assertFalse(validator.validate(new LeadController.NoteUpdate(null)).isEmpty());
+    }
+
+    @Test
     void rejectsMissingStatus() {
         assertFalse(validator.validate(new LeadController.StatusUpdate(null)).isEmpty());
     }

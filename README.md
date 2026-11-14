@@ -2,7 +2,7 @@
 
 A full-stack **customer lead management MVP** using **Java 21, Spring Boot 3, PostgreSQL, React 19, TypeScript and Vite**.
 
-> **Development prototype only.** Authentication, account isolation, audit logs and deployment hardening are not implemented. **Never deploy this version publicly or store real customer data.**
+> **Development prototype only.** A single local admin is protected with HTTP Basic, but account isolation, audit logs, TLS termination and deployment hardening are not implemented. **Never deploy this version publicly or store real customer data.**
 
 ## Implemented
 
@@ -26,9 +26,10 @@ docker-compose.yml     Local PostgreSQL development database
 **Requirements:** Java 21, Maven, Node.js, npm and Docker.
 
 1. Start local PostgreSQL: `docker compose up -d`
-2. Start API: `cd backend && mvn spring-boot:run`
-3. In a second terminal, start frontend: `cd frontend && npm install && npm run dev`
-4. Open `http://localhost:5173`
+2. Set a local admin password of **at least 12 characters** (do not commit it): on PowerShell, `$env:NEXORA_ADMIN_PASSWORD='choose-a-strong-local-password'`; on macOS/Linux, `export NEXORA_ADMIN_PASSWORD='choose-a-strong-local-password'`.
+3. Start API in the same terminal: `cd backend && mvn spring-boot:run`
+4. In a second terminal, start frontend: `cd frontend && npm install && npm run dev`
+5. Open `http://localhost:5173` and sign in with username `admin` and your configured password.
 
 The API is available at `http://localhost:8080`; CORS allows the local Vite development origin.
 
@@ -40,12 +41,13 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 | POST | `/api/leads` | Create lead |
 | PATCH | `/api/leads/{id}/status` | Update status |
 
-The starter currently uses demo-only local database credentials in `docker-compose.yml` and `application.properties`. Replace these and add secrets management before any deployment.
+The starter uses demo-only local database credentials in `docker-compose.yml` and `application.properties`. Replace these and add secrets management before any deployment.
 
 ## Roadmap
 
-- [ ] DTOs, strict request validation and structured errors
-- [ ] Authentication (Spring Security) and roles
+- [x] Create-lead request DTO, field limits, status validation and structured validation errors
+- [x] Single-admin HTTP Basic for local development (not production auth)
+- [ ] Production authentication, password rotation, session security and granular roles
 - [ ] Tenant isolation for multiple organizations
 - [ ] Flyway migrations
 - [ ] Unit/integration tests, Testcontainers and frontend tests
@@ -57,3 +59,12 @@ The starter currently uses demo-only local database credentials in `docker-compo
 Version 0.1 is a portfolio starter. CI build and end-to-end functionality have **not yet been verified**.
 
 **Developer:** [Artur Zuiev](https://github.com/Artur-Zuiev)
+
+## Security limitations
+
+- **Local development only.** HTTP Basic credentials are transmitted on every API request; use TLS before any remote use. Do not put this prototype on a public network.
+- The server intentionally refuses to start without `NEXORA_ADMIN_PASSWORD` (12+ characters). No default admin password is shipped.
+- The frontend keeps the encoded Basic auth header only in React state, not persistent browser storage. Base64 is **not encryption**.
+- The app has one shared local admin account, no self-registration or tenant isolation; do not use real customer data.
+- The database is exposed on localhost for local development and uses a demo credential: replace all credentials and harden infrastructure before deployment.
+- `POST /api/leads` accepts only `name` (1–120 chars), `email` (valid, max 254 chars), and optional `note` (max 2000 chars). New leads always begin in status `NEW`.

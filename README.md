@@ -11,6 +11,7 @@ A full-stack **customer lead management MVP** using **Java 21, Spring Boot 3, Po
 - List leads in a responsive table
 - Search leads by name, email or note; filter by status
 - Open lead details and update notes (up to 2000 characters)
+- Display the 50 most recent recorded lead events (creation, status and note changes)
 - Update lead status (New, Contacted, Qualified, Won, Lost)
 - REST API and persistent PostgreSQL storage
 - Docker Compose database for local development
@@ -43,6 +44,7 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 | POST | `/api/leads` | Create lead |
 | PATCH | `/api/leads/{id}/status` | Update status |
 | PATCH | `/api/leads/{id}/note` | Update note |
+| GET | `/api/leads/{id}/activities` | 50 most recent recorded events |
 
 The starter uses demo-only local database credentials in `docker-compose.yml` and `application.properties`. Replace these and add secrets management before any deployment.
 
@@ -56,7 +58,8 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [ ] Unit/integration tests, Testcontainers and frontend tests
 - [ ] CI pipeline, deployment, monitoring
 - [x] Basic searchable and filterable CRM workspace with editable lead notes
-- [ ] Activity timeline, workflow automations and analytics
+- [x] Basic lead activity timeline for new events
+- [ ] Follow-up tasks, workflow automations and analytics
 
 ## Status
 
@@ -78,3 +81,7 @@ Version 0.1 is a portfolio starter. CI build and end-to-end functionality have *
 After signing in, search the lead pipeline by name, email or note, filter by status and click **View** to see a lead's details. The note editor saves its contents using `PATCH /api/leads/{id}/note`, accepting a JSON body such as `{"note":"Follow up next week"}`. The backend validates a maximum of 2000 characters. Notes are stored on each lead; this is **not** an activity/audit history. Search and filtering currently run in the browser over the loaded leads; add server-side pagination and search for larger datasets.
 
 The development-only credentials and single-admin security limitations described above still apply. Do not deploy publicly or use real customer data.
+
+## Lead activity history
+
+The activity timeline records newly created leads and later status/note changes, with UTC timestamps. It shows the 50 most recent events per lead, ordered newest first. It intentionally records only a short event summary and never copies customer names, email addresses, or note contents into the activity log. Existing leads won't have retrospective history; only actions taken after this feature is installed are recorded. This is a basic application event history, **not** a tamper-proof compliance audit log.

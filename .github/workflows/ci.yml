@@ -61,5 +61,7 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Check local preflight logic (no running services required)
+        run: node --test ../scripts/mvp-preflight.test.mjs
       - name: Type-check and production build
         run: npm run build

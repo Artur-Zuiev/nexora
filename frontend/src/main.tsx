@@ -133,18 +133,26 @@ function App() {
     return response;
   }
 
-  async function signOut() {
+  async function signOut(forceLocal = false) {
     try {
       const token = csrf ?? await refreshCsrf();
-      await fetch('/api/session/logout', {
+      const response = await fetch('/api/session/logout', {
         method: 'POST', credentials: 'same-origin',
         headers: { [token.headerName]: token.token }
       });
-    } catch {
-      // Clear client memory even if the local server is not reachable.
-    } finally {
+      if (!response.ok && response.status !== 401) {
+        throw new Error('Logout rejected');
+      }
       clearClientSession();
       setCsrf(null);
+    } catch {
+      if (forceLocal) {
+        // Password rotation already invalidated the server session.
+        clearClientSession();
+        setCsrf(null);
+      } else {
+        setError('Could not confirm logout with the local server. Try again.');
+      }
     }
   }
 
@@ -258,7 +266,7 @@ function App() {
         body: JSON.stringify({ currentPassword, newPassword })
       });
       if (!response.ok) throw new Error('Password change failed');
-      await signOut();
+      await signOut(true);
       setAuthError('Password changed. Please sign in with your new password.');
     } catch (error) {
       if (error instanceof Error && error.message !== 'Unauthorized') {

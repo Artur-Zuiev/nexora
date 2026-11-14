@@ -73,7 +73,7 @@ public class LeadController {
         Lead lead = findLead(id);
         if (!Objects.equals(lead.note == null ? "" : lead.note, update.note())) {
             lead.note = update.note();
-            activities.save(LeadActivity.of(id, LeadActivity.Kind.NOTE_UPDATED, "Note updated"));
+            activities.save(LeadActivity.of(tenant.id(), id, LeadActivity.Kind.NOTE_UPDATED, "Note updated"));
         }
         return LeadResponse.from(repository.save(lead));
     }

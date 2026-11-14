@@ -43,6 +43,7 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | GET | `/api/me` | Current username, organization ID and role |
+| GET | `/api/team` | Admin-only team directory for the current organization |
 | GET | `/api/leads` | List leads scoped to the current user |
 | POST | `/api/leads` | Create lead |
 | PATCH | `/api/leads/{id}/status` | Update status |
@@ -62,7 +63,8 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Create-lead request DTO, field limits, status validation and structured validation errors
 - [x] Single-admin HTTP Basic for local development (not production auth)
 - [x] Database-backed users with hashed passwords and organization-aware principals (local-only)
-- [ ] Secure account provisioning, password reset, session security and granular role permissions
+- [x] First role permissions: MEMBER read-only CRM, ADMIN writes and views team roster
+- [ ] Secure account provisioning, password reset, session security and full granular role permissions
 - [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
 - [x] Database-level organization references and tenant-safe lead foreign keys
 - [ ] Real multi-organization principal resolution and production isolation (required before user accounts)
@@ -142,3 +144,11 @@ Flyway V4 creates `app_users` containing username, hashed password, enabled flag
 The authenticated server-side identity provides organization scope to all CRM controllers. The new authenticated `GET /api/me` returns only username, organization ID and role. A PostgreSQL-backed integration test uses two organizations and accounts to verify separate lead listings and reject cross-organization activity access and task creation.
 
 **Not implemented:** self-registration, user invitations, admin team management, fine-grained authorization of ADMIN vs MEMBER actions, password resets, secure sessions, TLS or an approval for public deployment. HTTP Basic remains local only; never expose it on the internet or enter real customer records. Back up any existing local database before the V4 upgrade.
+
+## Team roles — initial access rules
+
+- `ADMIN`: can read and modify leads and tasks, view the team roster for their own organization.
+- `MEMBER`: can read only their own organization's leads, activities and tasks; cannot create or update leads/tasks or list team members.
+- `GET /api/team` returns only an organization's usernames, roles, account enabled flags and creation timestamps. It never returns password hashes.
+
+Role checks run in Spring Security on the server. This milestone **does not** implement invitations, creating or disabling users via API, self-registration, admin UI, password rotation, sessions or production hardening. Accounts can currently be inserted only through controlled development/testing database setup. The existing HTTP Basic login remains **local-only**, and no real customer data should be stored.

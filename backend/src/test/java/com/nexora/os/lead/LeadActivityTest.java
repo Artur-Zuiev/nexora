@@ -39,7 +39,9 @@ class LeadActivityTest {
     void onlyRecordsActualStatusChanges() {
         LeadRepository leads = mock(LeadRepository.class);
         LeadActivityRepository activities = mock(LeadActivityRepository.class);
-        LeadController controller = new LeadController(leads, activities);
+        CurrentTenant tenant = mock(CurrentTenant.class);
+        when(tenant.id()).thenReturn("local-admin");
+        LeadController controller = new LeadController(leads, activities, tenant);
         Lead lead = new Lead();
         lead.id = 7L;
         lead.status = Lead.Status.NEW;
@@ -58,7 +60,9 @@ class LeadActivityTest {
     void historyOnlyReturnsRequestedLeadEntries() {
         LeadRepository leads = mock(LeadRepository.class);
         LeadActivityRepository activities = mock(LeadActivityRepository.class);
-        LeadController controller = new LeadController(leads, activities);
+        CurrentTenant tenant = mock(CurrentTenant.class);
+        when(tenant.id()).thenReturn("local-admin");
+        LeadController controller = new LeadController(leads, activities, tenant);
         when(leads.existsByIdAndTenantId(7L, "local-admin")).thenReturn(true);
         LeadActivity activity = LeadActivity.of("local-admin", 7L, LeadActivity.Kind.NOTE_UPDATED, "Note updated");
         activity.id = 2L;
@@ -68,6 +72,6 @@ class LeadActivityTest {
         var response = controller.history(7L);
         assertEquals(1, response.size());
         assertEquals("NOTE_UPDATED", response.get(0).kind());
-        verify(activities).findTop50ByLeadIdOrderByCreatedAtDescIdDesc(7L);
+        verify(activities).findTop50ByLeadIdAndTenantIdOrderByCreatedAtDescIdDesc(7L, "local-admin");
     }
 }

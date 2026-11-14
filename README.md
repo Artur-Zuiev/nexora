@@ -59,17 +59,18 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Create-lead request DTO, field limits, status validation and structured validation errors
 - [x] Single-admin HTTP Basic for local development (not production auth)
 - [ ] Production authentication, password rotation, session security and granular roles
-- [ ] Tenant isolation for multiple organizations
+- [ ] Tenant isolation for multiple organizations (required before adding user accounts)
 - [ ] Flyway migrations
 - [ ] Unit/integration tests, Testcontainers and frontend tests
-- [ ] CI pipeline, deployment, monitoring
+- [x] GitHub Actions build/test checks
+- [ ] Deployment and monitoring
 - [x] Basic searchable and filterable CRM workspace with editable lead notes
 - [x] Basic lead activity timeline for new events
 - [ ] Workflow automations and historical analytics
 
 ## Status
 
-Version 0.1 is a portfolio starter. CI build and end-to-end functionality have **not yet been verified**.
+Version 0.1 is a portfolio starter. GitHub Actions compile and test the backend and frontend on pull requests. A full end-to-end browser test has **not yet been verified**.
 
 **Developer:** [Artur Zuiev](https://github.com/Artur-Zuiev)
 
@@ -79,7 +80,7 @@ Version 0.1 is a portfolio starter. CI build and end-to-end functionality have *
 - The server intentionally refuses to start without `NEXORA_ADMIN_PASSWORD` (12+ characters). No default admin password is shipped.
 - The frontend keeps the encoded Basic auth header only in React state, not persistent browser storage. Base64 is **not encryption**.
 - The app has one shared local admin account, no self-registration or tenant isolation; do not use real customer data.
-- The database is exposed on localhost for local development and uses a demo credential: replace all credentials and harden infrastructure before deployment.
+- The database port is bound to the loopback interface for local development and uses a demo credential: replace all credentials and harden infrastructure before deployment.
 - `POST /api/leads` accepts only `name` (1–120 chars), `email` (valid, max 254 chars), and optional `note` (max 2000 chars). New leads always begin in status `NEW`.
 
 ## CRM workspace (local prototype)
@@ -99,3 +100,7 @@ Open a lead and create a task with a title and due date. Tasks appear in a globa
 ## Analytics dashboard
 
 The dashboard computes a **current snapshot** from the leads and tasks already loaded into the browser. Lead conversion = won leads / all leads; closed-lead win rate = won / (won + lost); task completion = completed / all tasks. Each percentage is 0% when its denominator is zero. It also shows lead counts by status and the number of open tasks whose due date is before the browser's current local date. This feature does not claim trends over time, financial revenue, or forecasting accuracy. For large datasets, add paginated backend reporting rather than browser-side totals.
+
+## Security hardening milestone
+
+The API now returns explicit `LeadResponse` and `LeadTaskResponse` objects instead of exposing mutable JPA entities directly. Both the Spring Boot server and the Docker Compose PostgreSQL host port bind to `127.0.0.1` by default. These changes reduce accidental network exposure, **but are not production authentication, account registration, or tenant isolation**. The local-only warning remains in effect. Before multiple users are created, the data model must be migrated to organization-scoped records, and every read/write must enforce that scope on the server.

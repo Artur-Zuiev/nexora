@@ -98,7 +98,7 @@ Version 0.1 is a portfolio starter. GitHub Actions compile and test the backend 
 
 - **Local development only.** HTTP Basic credentials are transmitted on every API request; use TLS before any remote use. Do not put this prototype on a public network.
 - The server intentionally refuses to start without `NEXORA_ADMIN_PASSWORD` (12+ characters). No default admin password is shipped.
-- The frontend keeps the encoded Basic auth header only in React state, not persistent browser storage. Base64 is **not encryption**.
+- The frontend uses a server-managed HttpOnly session cookie and reads a CSRF token into React state. Credentials and tokens are not saved to localStorage. Old HTTP Basic is still available to legacy local API clients during this transition.
 - The app bootstraps one local admin account into PostgreSQL. Although the database can store additional users, there is **no public registration or team management UI**; do not use real customer data.
 - The database port is bound to the loopback interface for local development and uses a demo credential: replace all credentials and harden infrastructure before deployment.
 - `POST /api/leads` accepts only `name` (1–120 chars), `email` (valid, max 254 chars), and optional `note` (max 2000 chars). New leads always begin in status `NEW`.
@@ -199,7 +199,7 @@ A Spring Security filter blocks **a username + observed remote IP address** afte
 
 ## Browser sessions — first phase, local-only
 
-The backend now provides an experimental cookie-backed session flow alongside the **existing HTTP Basic frontend**. This is deliberately incremental: the current React app still signs in using Basic until the session-based frontend migration and its own tests are complete. Session users have the same organization/role controls.
+The backend provides an experimental cookie-backed session flow and the **React frontend now uses it**. This is deliberately incremental: the current React app still signs in using Basic until the session-based frontend migration and its own tests are complete. Session users have the same organization/role controls.
 
 1. Call `GET /api/session/csrf` and retain the returned `headerName` and `token`, along with the server's HttpOnly session cookie.
 2. Send `POST /api/session/login` with `{"username":"...","password":"..."}`, the CSRF header and the session cookie. A successful login rotates the session ID.
@@ -207,3 +207,9 @@ The backend now provides an experimental cookie-backed session flow alongside th
 4. Send `POST /api/session/logout` with the CSRF header to invalidate the session.
 
 The server checks session-backed identities against the stored account on each request: disabling an account, changing its password or role, or changing its organization invalidates its old session. JSON login has a separate in-memory 5-attempt/15-minute limiter. The server session is local-process memory and is lost on restart. The cookie is HttpOnly and SameSite=Lax, and local development has **no HTTPS**; never expose this implementation publicly. HTTP Basic stays temporarily enabled for old local development clients and tests, with their existing CSRF exemption, until the frontend is fully migrated. This stage is **not** a production-grade authentication system, and no payment or hosting is involved.
+
+## Local React session migration
+
+The Vite dev server proxies `/api` requests to the locally bound Spring Boot server on `127.0.0.1:8080`. This puts cookies and API requests on one browser origin, avoiding cross-origin credential cookies. React fetches a CSRF token, signs in with `POST /api/session/login`, sends the cookie on API requests, and supplies CSRF on unsafe methods. After a page reload it checks `GET /api/me` to restore a valid server session. Logout calls `POST /api/session/logout` and clears application state; changing password also signs the user out.
+
+**Still to do:** Retire legacy HTTP Basic completely and remove its temporary CSRF exemption, add frontend browser-level end-to-end tests, harden logout under network failure, and configure HTTPS plus secure cookies for any eventual public deployment. Never deploy this version or enter real client credentials. No new paid services are used.

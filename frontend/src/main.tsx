@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 
+type Csrf = { headerName: string; token: string };
 type Account = { username: string; organizationId: string; role: 'ADMIN' | 'MEMBER' };
 type SecurityEvent = { id: number; actorUsername: string; eventType: string; targetUsername: string; createdAt: string };
 type TeamMember = { id: number; username: string; role: string; enabled: boolean; createdAt: string };
@@ -10,8 +11,8 @@ type Lead = { id: number; name: string; email: string; note: string | null; stat
 type StatusFilter = Status | 'ALL';
 type LeadTask = { id: number; leadId: number; title: string; dueDate: string; status: 'OPEN' | 'DONE' };
 type LeadActivity = { id: number; kind: 'CREATED' | 'STATUS_CHANGED' | 'NOTE_UPDATED'; summary: string; createdAt: string };
-const API = 'http://localhost:8080/api/leads';
-const TASK_API = 'http://localhost:8080/api/tasks';
+const API = '/api/leads';
+const TASK_API = '/api/tasks';
 function localToday() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 const statuses: Status[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'WON', 'LOST'];
 const labels: Record<Status, string> = {
@@ -19,7 +20,9 @@ const labels: Record<Status, string> = {
 };
 
 function App() {
-  const [auth, setAuth] = useState('');
+  const [auth, setAuth] = useState(false);
+  const [csrf, setCsrf] = useState<Csrf | null>(null);
+  const [restoringSession, setRestoringSession] = useState(true);
   const [account, setAccount] = useState<Account | null>(null);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
@@ -79,8 +82,8 @@ function App() {
     return matchesSearch && (filter === 'ALL' || lead.status === filter);
   }), [leads, search, filter]);
 
-  function signOut() {
-    setAuth('');
+  function clearClientSession() {
+    setAuth(false);
     setAccount(null);
     setTeam([]);
     setSecurityEvents([]);
@@ -104,13 +107,25 @@ function App() {
     setSuccess('');
   }
 
+  async function refreshCsrf(): Promise<Csrf> {
+    const response = await fetch('/api/session/csrf', { credentials: 'same-origin' });
+    if (!response.ok) throw new Error('CSRF unavailable');
+    const value = await response.json() as Csrf;
+    setCsrf(value);
+    return value;
+  }
+
   async function api(url: string, init: RequestInit = {}) {
+    const method = (init.method ?? 'GET').toUpperCase();
+    const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+    const token = unsafe ? (csrf ?? await refreshCsrf()) : null;
     const response = await fetch(url, {
       ...init,
-      headers: { 'Authorization': `Basic ${auth}`, ...init.headers }
+      credentials: 'same-origin',
+      headers: { ...init.headers, ...(token ? { [token.headerName]: token.token } : {}) }
     });
     if (response.status === 401) {
-      signOut();
+      clearClientSession();
       setAuthError('Your session expired. Please sign in again.');
       throw new Error('Unauthorized');
     }
@@ -118,37 +133,72 @@ function App() {
     return response;
   }
 
+  async function signOut(forceLocal = false) {
+    try {
+      const token = csrf ?? await refreshCsrf();
+      const response = await fetch('/api/session/logout', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { [token.headerName]: token.token }
+      });
+      if (!response.ok && response.status !== 401) {
+        throw new Error('Logout rejected');
+      }
+      clearClientSession();
+      setCsrf(null);
+    } catch {
+      if (forceLocal) {
+        // Password rotation already invalidated the server session.
+        clearClientSession();
+        setCsrf(null);
+      } else {
+        setError('Could not confirm logout with the local server. Try again.');
+      }
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function restore() {
+      try {
+        const token = await refreshCsrf();
+        const response = await fetch('/api/me', { credentials: 'same-origin' });
+        if (!cancelled && response.ok) {
+          setCsrf(token);
+          setAccount(await response.json() as Account);
+          setAuth(true);
+        }
+      } catch {
+        // No session or backend unavailable.
+      } finally {
+        if (!cancelled) setRestoringSession(false);
+      }
+    }
+    void restore();
+    return () => { cancelled = true; };
+  }, []);
+
   async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthError('');
-    let encoded: string;
-    try {
-      // Supports non-ASCII credentials; the password remains only in memory.
-      encoded = btoa(Array.from(new TextEncoder().encode(`${username}:${password}`),
-        byte => String.fromCharCode(byte)).join(''));
-    } catch {
-      setAuthError('Could not encode these credentials.');
-      return;
-    }
     setLoading(true);
     try {
-      const response = await fetch(API, { headers: { Authorization: `Basic ${encoded}` } });
+      const token = csrf ?? await refreshCsrf();
+      const response = await fetch('/api/session/login', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', [token.headerName]: token.token },
+        body: JSON.stringify({ username, password })
+      });
       if (response.status === 429) {
-        const retry = response.headers.get('Retry-After');
-        setAuthError(`Too many failed sign-in attempts. Try again in about ${retry ? Math.ceil(Number(retry) / 60) : 15} minutes.`);
+        setAuthError('Too many failed sign-in attempts. Try again later.');
         return;
       }
       if (!response.ok) throw new Error('Invalid credentials');
-      const accountResponse = await fetch('http://localhost:8080/api/me', {
-        headers: { Authorization: `Basic ${encoded}` }
-      });
-      if (!accountResponse.ok) throw new Error('Cannot resolve account');
-      const currentAccount = await accountResponse.json() as Account;
-      setLeads(await response.json() as Lead[]);
+      const currentAccount = await response.json() as Account;
       setAccount(currentAccount);
-      setAuth(encoded);
+      setAuth(true);
       setPassword('');
       setError('');
+      await refreshCsrf();
     } catch {
       setAuthError('Sign in failed. Check your credentials and backend connection.');
     } finally {
@@ -180,7 +230,7 @@ function App() {
   async function loadTeam() {
     if (!canEdit) return;
     try {
-      const response = await api('http://localhost:8080/api/team');
+      const response = await api('/api/team');
       setTeam(await response.json() as TeamMember[]);
     } catch (e) {
       if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not load team members.');
@@ -190,7 +240,7 @@ function App() {
   async function loadSecurityEvents() {
     if (!canEdit) return;
     try {
-      const response = await api('http://localhost:8080/api/security/events');
+      const response = await api('/api/security/events');
       setSecurityEvents(await response.json() as SecurityEvent[]);
     } catch (e) {
       if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not load security history.');
@@ -210,13 +260,13 @@ function App() {
     }
     setPasswordSaving(true);
     try {
-      const response = await api('http://localhost:8080/api/me/password', {
+      const response = await api('/api/me/password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword })
       });
       if (!response.ok) throw new Error('Password change failed');
-      signOut();
+      await signOut(true);
       setAuthError('Password changed. Please sign in with your new password.');
     } catch (error) {
       if (error instanceof Error && error.message !== 'Unauthorized') {
@@ -236,7 +286,7 @@ function App() {
     setTeamSaving(true);
     setTeamMessage('');
     try {
-      const response = await api('http://localhost:8080/api/team', {
+      const response = await api('/api/team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: memberUsername.trim(), password: memberPassword })
@@ -260,7 +310,7 @@ function App() {
     setTeamSaving(true);
     setTeamMessage('');
     try {
-      await api(`http://localhost:8080/api/team/${member.id}/enabled`, {
+      await api(`/api/team/${member.id}/enabled`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !member.enabled })
@@ -282,7 +332,7 @@ function App() {
     setTeamSaving(true);
     setTeamMessage('');
     try {
-      await api(`http://localhost:8080/api/team/${resetMemberId}/reset-password`, {
+      await api(`/api/team/${resetMemberId}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -428,6 +478,8 @@ function App() {
     setSuccess('');
   }
 
+  if (restoringSession) return <main className="login-page"><section className="login-card"><h1>Nexora</h1><p>Restoring local session…</p></section></main>;
+
   if (!auth) return (
     <main className="login-page">
       <section className="login-card">
@@ -466,7 +518,7 @@ function App() {
             <p>Organize opportunities, follow up and manage your pipeline.</p>
             <p className="account-caption">{account?.username} · {account?.role === 'ADMIN' ? 'Administrator' : 'Read-only member'} · {account?.organizationId}</p>
           </div>
-          <button type="button" className="sign-out" onClick={signOut}>Sign out</button>
+          <button type="button" className="sign-out" onClick={() => void signOut()}>Sign out</button>
         </header>
         <section className="metrics" aria-label="Pipeline summary">
           <article><small>Total leads</small><strong>{leads.length}</strong></article>

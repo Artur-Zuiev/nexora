@@ -252,3 +252,11 @@ See [local backup & recovery instructions](docs/local-backups.md). `python scrip
 ## Follow-up task workspace improvements
 
 The React workspace now groups open follow-ups by **overdue**, **due today**, and **later**, with counters and selectable priority filters. You can also display all or completed tasks and search by task title, customer name, or customer email. The task list is ordered by due date, and clicking a customer from a task opens their CRM record. Completion and reopening still use the existing tenant-scoped Java REST API, and read-only members cannot modify tasks. The filters run locally over loaded demo data; no scheduled reminders or email delivery are included. A Chromium E2E scenario verifies creating a synthetic task, filtering, searching, navigating to the customer and marking it complete.
+
+## Secure local CSV exports
+
+Authenticated **ADMIN** accounts can download UTF-8 CSV files using the **Export leads CSV** and **Export tasks CSV** buttons in the dashboard. Matching endpoints: `GET /api/exports/leads.csv` and `GET /api/exports/tasks.csv`. The backend queries PostgreSQL using the authenticated organization's tenant ID and does not accept a tenant parameter from the browser. `MEMBER` accounts cannot call these endpoints. Downloads include all records for the admin's organization, not just currently filtered rows.
+
+The CSV files include a UTF-8 BOM and escaped quoted cells, with an apostrophe added to text that could otherwise be interpreted as spreadsheet formulas (including text with leading whitespace). CSV responses use `Cache-Control: no-store`. Unit and PostgreSQL integration tests check quoting, formula mitigation, tenant isolation and access control, and Chromium tests exercise actual downloads.
+
+**Security:** CSVs contain customer names, emails and notes, so treat downloads as sensitive files. Keep them encrypted/private and do not share them or open untrusted modified CSVs. The formula mitigation is defense-in-depth, not a guarantee for all spreadsheet versions. This is a local prototype only; there is no audit of every download, export size limitation, or production data governance. No paid services were added.

@@ -21,6 +21,10 @@ function App() {
   const [auth, setAuth] = useState('');
   const [account, setAccount] = useState<Account | null>(null);
   const [team, setTeam] = useState<TeamMember[]>([]);
+  const [memberUsername, setMemberUsername] = useState('');
+  const [memberPassword, setMemberPassword] = useState('');
+  const [teamSaving, setTeamSaving] = useState(false);
+  const [teamMessage, setTeamMessage] = useState('');
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -69,6 +73,9 @@ function App() {
     setAuth('');
     setAccount(null);
     setTeam([]);
+    setMemberUsername('');
+    setMemberPassword('');
+    setTeamMessage('');
     setPassword('');
     setLeads([]);
     setTasks([]);
@@ -154,6 +161,52 @@ function App() {
       setTeam(await response.json() as TeamMember[]);
     } catch (e) {
       if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not load team members.');
+    }
+  }
+
+  async function addMember(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canEdit) return;
+    setTeamSaving(true);
+    setTeamMessage('');
+    try {
+      const response = await api('http://localhost:8080/api/team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: memberUsername.trim(), password: memberPassword })
+      });
+      if (response.status !== 201) throw new Error('Failed to create account');
+      setMemberUsername('');
+      setMemberPassword('');
+      await loadTeam();
+      setTeamMessage('Member created. Share the password securely outside Nexora.');
+    } catch (error) {
+      if (error instanceof Error && error.message !== 'Unauthorized') {
+        setTeamMessage('Could not add member. Check username uniqueness and password length.');
+      }
+    } finally {
+      setTeamSaving(false);
+    }
+  }
+
+  async function toggleMember(member: TeamMember) {
+    if (!canEdit || member.username === account?.username || member.role !== 'MEMBER') return;
+    setTeamSaving(true);
+    setTeamMessage('');
+    try {
+      await api(`http://localhost:8080/api/team/${member.id}/enabled`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !member.enabled })
+      });
+      await loadTeam();
+      setTeamMessage(member.enabled ? 'Member disabled.' : 'Member enabled.');
+    } catch (error) {
+      if (error instanceof Error && error.message !== 'Unauthorized') {
+        setTeamMessage('Could not update member access.');
+      }
+    } finally {
+      setTeamSaving(false);
     }
   }
 
@@ -406,16 +459,26 @@ function App() {
         </section>
         {canEdit && <section className="panel" aria-label="Team directory">
           <div className="panel-header"><h2>Team members</h2><span>{team.length} accounts</span></div>
+          <form className="team-create-form" onSubmit={addMember}>
+            <label><span>New member username</span><input required minLength={3} maxLength={120} pattern="[a-zA-Z0-9][a-zA-Z0-9._-]*" value={memberUsername} autoComplete="off" onChange={e => setMemberUsername(e.target.value)} placeholder="alex.dev" /></label>
+            <label><span>Temporary password (12+ characters)</span><input required type="password" minLength={12} maxLength={128} autoComplete="new-password" value={memberPassword} onChange={e => setMemberPassword(e.target.value)} placeholder="Choose a strong unique password" /></label>
+            <button type="submit" disabled={teamSaving}>Create member</button>
+          </form>
+          {teamMessage && <p role="status" className="analytics-caption">{teamMessage}</p>}
           {team.length === 0 ? <p className="empty">No team accounts loaded.</p> :
           <div className="table-wrap"><table>
-            <thead><tr><th>Username</th><th>Role</th><th>Status</th></tr></thead>
+            <thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Access</th></tr></thead>
             <tbody>{team.map(member => <tr key={member.id}>
               <td><strong>{member.username}</strong></td>
               <td>{member.role}</td>
               <td>{member.enabled ? 'Active' : 'Disabled'}</td>
+              <td>{member.role === 'MEMBER' ?
+                <button type="button" disabled={teamSaving} className="secondary-button" onClick={() => void toggleMember(member)}>
+                  {member.enabled ? 'Disable' : 'Enable'}
+                </button> : '—'}</td>
             </tr>)}</tbody>
           </table></div>}
-          <p className="analytics-caption">Read-only directory. Account invitations and management are not available yet.</p>
+          <p className="analytics-caption">Local development only. New accounts have MEMBER read-only access. Share passwords securely; no invitation emails are sent.</p>
         </section>}
         {selected && <section className="panel lead-detail" aria-label="Lead details">
           <div className="panel-header">

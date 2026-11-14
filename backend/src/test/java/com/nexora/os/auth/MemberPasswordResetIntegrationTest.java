@@ -5,19 +5,17 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import com.nexora.os.config.SessionTestSupport;
 
 @SpringBootTest(properties = "NEXORA_ADMIN_PASSWORD=integration-test-secret-123")
 @AutoConfigureMockMvc
@@ -47,14 +45,14 @@ class MemberPasswordResetIntegrationTest {
         String replacement = "replacement-long-pass-456";
         long id = member("local-admin", username, old, "MEMBER");
         mvc.perform(post("/api/team/" + id + "/reset-password")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", ADMIN))
+                .with(SessionTestSupport.asUser(mvc, "admin", ADMIN))
                 .contentType("application/json").content(body(ADMIN, replacement)))
                 .andExpect(status().isOk());
         assertTrue(encoder.matches(replacement,
                 jdbc.queryForObject("SELECT password_hash FROM app_users WHERE id = ?", String.class, id)));
-        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, basic(username, old)))
+        mvc.perform(get("/api/me").with(SessionTestSupport.asUser(mvc, username, old)))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, basic(username, replacement)))
+        mvc.perform(get("/api/me").with(SessionTestSupport.asUser(mvc, username, replacement)))
                 .andExpect(status().isOk());
     }
 
@@ -64,11 +62,11 @@ class MemberPasswordResetIntegrationTest {
         String old = "old-long-member-pass-123";
         long id = member("local-admin", username, old, "MEMBER");
         mvc.perform(post("/api/team/" + id + "/reset-password")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", ADMIN))
+                .with(SessionTestSupport.asUser(mvc, "admin", ADMIN))
                 .contentType("application/json")
                 .content(body("incorrect-admin-password", "replacement-long-pass-456")))
                 .andExpect(status().isBadRequest());
-        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, basic(username, old)))
+        mvc.perform(get("/api/me").with(SessionTestSupport.asUser(mvc, username, old)))
                 .andExpect(status().isOk());
     }
 
@@ -80,12 +78,12 @@ class MemberPasswordResetIntegrationTest {
         String localUser = "member-" + UUID.randomUUID();
         member("local-admin", localUser, "old-long-member-pass-123", "MEMBER");
         mvc.perform(post("/api/team/" + foreign + "/reset-password")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", ADMIN))
+                .with(SessionTestSupport.asUser(mvc, "admin", ADMIN))
                 .contentType("application/json")
                 .content(body(ADMIN, "replacement-long-pass-456")))
                 .andExpect(status().isNotFound());
         mvc.perform(post("/api/team/" + foreign + "/reset-password")
-                .header(HttpHeaders.AUTHORIZATION, basic(localUser, "old-long-member-pass-123"))
+                .with(SessionTestSupport.asUser(mvc, localUser, "old-long-member-pass-123"))
                 .contentType("application/json")
                 .content(body("old-long-member-pass-123", "replacement-long-pass-456")))
                 .andExpect(status().isForbidden());
@@ -95,7 +93,7 @@ class MemberPasswordResetIntegrationTest {
     void cannotResetAdminOrDisabledMemberAndInvalidLengthIsRejected() throws Exception {
         Long adminId = jdbc.queryForObject("SELECT id FROM app_users WHERE username='admin'", Long.class);
         mvc.perform(post("/api/team/" + adminId + "/reset-password")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", ADMIN))
+                .with(SessionTestSupport.asUser(mvc, "admin", ADMIN))
                 .contentType("application/json")
                 .content(body(ADMIN, "replacement-long-pass-456")))
                 .andExpect(status().isConflict());
@@ -103,19 +101,15 @@ class MemberPasswordResetIntegrationTest {
         long disabledId = member("local-admin", user, "old-long-member-pass-123", "MEMBER");
         jdbc.update("UPDATE app_users SET enabled=false WHERE id=?", disabledId);
         mvc.perform(post("/api/team/" + disabledId + "/reset-password")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", ADMIN))
+                .with(SessionTestSupport.asUser(mvc, "admin", ADMIN))
                 .contentType("application/json")
                 .content(body(ADMIN, "replacement-long-pass-456")))
                 .andExpect(status().isConflict());
         mvc.perform(post("/api/team/" + disabledId + "/reset-password")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", ADMIN))
+                .with(SessionTestSupport.asUser(mvc, "admin", ADMIN))
                 .contentType("application/json")
                 .content(body(ADMIN, "short")))
                 .andExpect(status().isBadRequest());
     }
 
-    private static String basic(String user, String password) {
-        return "Basic " + Base64.getEncoder().encodeToString(
-                (user + ":" + password).getBytes(StandardCharsets.UTF_8));
-    }
 }

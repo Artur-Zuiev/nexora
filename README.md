@@ -244,3 +244,7 @@ On PowerShell, set `$env:E2E_ADMIN_PASSWORD='your-local-test-admin-password'` be
 ## Dashboard interface refresh
 
 The local CRM dashboard has a refined responsive visual hierarchy, improved metric cards, focus-visible input/button styling, accessible actual sidebar links to overview, pipeline, follow-ups, analytics, team, audit history, and account security, plus a horizontally scrollable navigation bar on mobile. The dashboard retains the existing account roles and business logic. Playwright exercises navigation on desktop and at a narrow mobile viewport. No image, design library, CDN, paid assets or external services were introduced.
+
+## Local backup and recovery tools
+
+See [local backup & recovery instructions](docs/local-backups.md). `python scripts/db_backup.py backup --output backups/nexora-demo.dump` creates a PostgreSQL custom-format archive with a SHA-256 companion file; `verify` checks integrity, and `restore` requires an explicit confirmation and creates a **new** database without overwriting `nexora`. A dedicated GitHub Action tests the backup and restore with synthetic demo data. Backups contain sensitive records and password hashes; store privately, never in Git. These utilities are local-only, not production disaster recovery, and no paid storage/provider is added.

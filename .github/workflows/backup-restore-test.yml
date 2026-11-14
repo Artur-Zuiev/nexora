@@ -19,6 +19,16 @@ jobs:
           python-version: '3.12'
       - name: Start disposable local PostgreSQL
         run: docker compose up -d --wait
+      - name: Wait until PostgreSQL accepts connections
+        run: |
+          for i in $(seq 1 60); do
+            if docker compose exec -T postgres pg_isready -U nexora -d nexora >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs postgres
+          exit 1
       - name: Seed synthetic data
         run: |
           docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U nexora -d nexora -c \

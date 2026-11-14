@@ -87,3 +87,40 @@ test('mobile navigation remains accessible and functional', async ({ page }) => 
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 });
+
+test('follow-up priorities, task search and customer navigation', async ({ page }) => {
+  await signIn(page);
+  const unique = Date.now().toString(36);
+  const customer = `Task Customer ${unique}`;
+  const title = `Call customer ${unique}`;
+  await page.getByRole('textbox', { name: 'Customer name' }).fill(customer);
+  await page.getByRole('textbox', { name: 'Email', exact: true }).fill(`task-${unique}@example.test`);
+  await page.getByRole('button', { name: 'Add lead' }).click();
+  await expect(page.locator('#lead-detail')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Task', exact: true }).fill(title);
+  const today = await page.evaluate(() => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+  await page.getByLabel('Due date').fill(today);
+  await page.getByRole('button', { name: 'Add task' }).click();
+
+  const taskPanel = page.locator('#tasks');
+  await taskPanel.getByRole('button', { name: /Due today/ }).click();
+  await expect(taskPanel.getByRole('row', { name: new RegExp(title) })).toBeVisible();
+
+  await taskPanel.getByRole('searchbox', { name: 'Search follow-ups' }).fill('not-a-match');
+  await expect(taskPanel.getByText('No tasks in this view')).toBeVisible();
+  await taskPanel.getByRole('button', { name: 'Reset task filters' }).click();
+  await expect(taskPanel.getByRole('row', { name: new RegExp(title) })).toBeVisible();
+
+  await taskPanel.getByRole('button', { name: customer }).click();
+  await expect(page.locator('#lead-detail').getByRole('heading', { name: customer })).toBeVisible();
+  await taskPanel.getByRole('row', { name: new RegExp(title) })
+    .getByRole('button', { name: 'Mark done' }).click();
+  await taskPanel.getByRole('combobox', { name: 'Show tasks' }).selectOption('DONE');
+  await expect(taskPanel.getByRole('row', { name: new RegExp(title) })).toBeVisible();
+});

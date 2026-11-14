@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 
+type Account = { username: string; organizationId: string; role: 'ADMIN' | 'MEMBER' };
+type TeamMember = { id: number; username: string; role: string; enabled: boolean; createdAt: string };
 type Status = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'WON' | 'LOST';
 type Lead = { id: number; name: string; email: string; note: string | null; status: Status };
 type StatusFilter = Status | 'ALL';
@@ -17,6 +19,8 @@ const labels: Record<Status, string> = {
 
 function App() {
   const [auth, setAuth] = useState('');
+  const [account, setAccount] = useState<Account | null>(null);
+  const [team, setTeam] = useState<TeamMember[]>([]);
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -38,6 +42,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const canEdit = account?.role === 'ADMIN';
   const selected = leads.find(lead => lead.id === selectedId) ?? null;
   const shownTasks = useMemo(() => tasks.filter(task => taskFilter === 'ALL' || task.status === taskFilter), [tasks, taskFilter]);
   const overdue = tasks.filter(task => task.status === 'OPEN' && task.dueDate < localToday()).length;
@@ -62,6 +67,8 @@ function App() {
 
   function signOut() {
     setAuth('');
+    setAccount(null);
+    setTeam([]);
     setPassword('');
     setLeads([]);
     setTasks([]);
@@ -102,7 +109,13 @@ function App() {
     try {
       const response = await fetch(API, { headers: { Authorization: `Basic ${encoded}` } });
       if (!response.ok) throw new Error('Invalid credentials');
+      const accountResponse = await fetch('http://localhost:8080/api/me', {
+        headers: { Authorization: `Basic ${encoded}` }
+      });
+      if (!accountResponse.ok) throw new Error('Cannot resolve account');
+      const currentAccount = await accountResponse.json() as Account;
       setLeads(await response.json() as Lead[]);
+      setAccount(currentAccount);
       setAuth(encoded);
       setPassword('');
       setError('');
@@ -134,11 +147,22 @@ function App() {
     }
   }
 
+  async function loadTeam() {
+    if (!canEdit) return;
+    try {
+      const response = await api('http://localhost:8080/api/team');
+      setTeam(await response.json() as TeamMember[]);
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not load team members.');
+    }
+  }
+
   useEffect(() => { if (auth) { void load(); void loadTasks(); } }, [auth]);
+  useEffect(() => { if (auth && canEdit) void loadTeam(); }, [auth, canEdit]);
 
   async function addTask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected) return;
+    if (!selected || !canEdit) return;
     setSaving(true); setError(''); setSuccess('');
     try {
       await api(TASK_API, {
@@ -283,6 +307,7 @@ function App() {
           <span className="active">Overview</span>
           <span className="active-section">Lead workspace</span>
           <span className="active-section">Analytics</span>
+          {canEdit && <span className="active-section">Team</span>}
           <span className="planned">Automations · planned</span>
         </nav>
         <small className="sidebar-foot">Local development · CRM MVP</small>
@@ -293,6 +318,7 @@ function App() {
             <span className="eyebrow">WORKSPACE / CRM</span>
             <h1>Business overview</h1>
             <p>Organize opportunities, follow up and manage your pipeline.</p>
+            <p className="account-caption">{account?.username} · {account?.role === 'ADMIN' ? 'Administrator' : 'Read-only member'} · {account?.organizationId}</p>
           </div>
           <button type="button" className="sign-out" onClick={signOut}>Sign out</button>
         </header>
@@ -325,14 +351,14 @@ function App() {
           </div>
           <p className="analytics-caption">Snapshot of the leads and tasks currently loaded in this workspace. No historical trends or revenue estimates are calculated.</p>
         </section>
-        <section className="panel">
+        {canEdit && <section className="panel">
           <h2>Add a lead</h2>
           <form onSubmit={add}>
             <label><span>Customer name</span><input required maxLength={120} value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" /></label>
             <label><span>Email</span><input required type="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" /></label>
             <button disabled={saving} type="submit">Add lead</button>
           </form>
-        </section>
+        </section>}
         <section className="panel">
           <div className="panel-header"><h2>Lead pipeline</h2><span>{filtered.length} of {leads.length} records</span></div>
           <div className="toolbar">
@@ -351,9 +377,9 @@ function App() {
               <thead><tr><th>Customer</th><th>Email</th><th>Status</th><th>Details</th></tr></thead>
               <tbody>{filtered.map(lead => <tr key={lead.id}>
                 <td><strong>{lead.name}</strong></td><td>{lead.email}</td>
-                <td><select disabled={saving} aria-label={`Status for ${lead.name}`} value={lead.status} onChange={e => void changeStatus(lead.id, e.target.value as Status)}>
+                <td>{canEdit ? <select disabled={saving} aria-label={`Status for ${lead.name}`} value={lead.status} onChange={e => void changeStatus(lead.id, e.target.value as Status)}>
                   {statuses.map(status => <option key={status} value={status}>{labels[status]}</option>)}
-                </select></td>
+                </select> : <span>{labels[lead.status]}</span>}</td>
                 <td><button type="button" className="secondary-button details-button" onClick={() => openLead(lead)}>View</button></td>
               </tr>)}</tbody>
             </table></div>}
@@ -372,12 +398,25 @@ function App() {
                 <td><strong>{task.title}</strong></td>
                 <td>{leadName(task.leadId)}</td>
                 <td><span className={task.status === 'OPEN' && task.dueDate < localToday() ? 'overdue' : ''}>{task.dueDate}{task.status === 'OPEN' && task.dueDate < localToday() ? ' · Overdue' : ''}</span></td>
-                <td><button disabled={saving} type="button" className="secondary-button" onClick={() => void updateTask(task.id, task.status === 'OPEN' ? 'DONE' : 'OPEN')}>
+                <td>{canEdit ? <button disabled={saving} type="button" className="secondary-button" onClick={() => void updateTask(task.id, task.status === 'OPEN' ? 'DONE' : 'OPEN')}>
                   {task.status === 'OPEN' ? 'Mark done' : 'Reopen'}
-                </button></td>
+                </button> : task.status === 'OPEN' ? 'Open' : 'Done'}</td>
               </tr>)}</tbody>
             </table></div>}
         </section>
+        {canEdit && <section className="panel" aria-label="Team directory">
+          <div className="panel-header"><h2>Team members</h2><span>{team.length} accounts</span></div>
+          {team.length === 0 ? <p className="empty">No team accounts loaded.</p> :
+          <div className="table-wrap"><table>
+            <thead><tr><th>Username</th><th>Role</th><th>Status</th></tr></thead>
+            <tbody>{team.map(member => <tr key={member.id}>
+              <td><strong>{member.username}</strong></td>
+              <td>{member.role}</td>
+              <td>{member.enabled ? 'Active' : 'Disabled'}</td>
+            </tr>)}</tbody>
+          </table></div>}
+          <p className="analytics-caption">Read-only directory. Account invitations and management are not available yet.</p>
+        </section>}
         {selected && <section className="panel lead-detail" aria-label="Lead details">
           <div className="panel-header">
             <div><span className="eyebrow">LEAD DETAILS</span><h2>{selected.name}</h2></div>
@@ -385,19 +424,19 @@ function App() {
           </div>
           <p><strong>Email:</strong> <a href={`mailto:${selected.email}`}>{selected.email}</a></p>
           <p><strong>Status:</strong> {labels[selected.status]}</p>
-          <form onSubmit={saveNote} className="note-form">
+          {canEdit ? <form onSubmit={saveNote} className="note-form">
             <label htmlFor="lead-note"><span>Customer notes</span></label>
             <textarea id="lead-note" rows={5} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} placeholder="Follow-up details, customer needs, next steps…" />
             <div className="note-actions"><small>{note.length} / 2000</small><button disabled={saving || note === (selected.note ?? '')} type="submit">Save note</button></div>
-          </form>
-          <div className="follow-up-form">
+          </form> : <section className="read-only-note"><h3>Customer notes</h3><p>{selected.note || 'No notes yet.'}</p></section>}
+          {canEdit && <div className="follow-up-form">
             <h3>New follow-up</h3>
             <form onSubmit={addTask}>
               <label><span>Task</span><input required maxLength={160} value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Call customer" /></label>
               <label><span>Due date</span><input required type="date" value={taskDue} onChange={e => setTaskDue(e.target.value)} /></label>
               <button disabled={saving} type="submit">Add task</button>
             </form>
-          </div>
+          </div>}
           <div className="activity-history">
             <h3>Recent activity</h3>
             {activityLoading ? <p className="empty">Loading activity…</p> : activity.length === 0 ?

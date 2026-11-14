@@ -27,7 +27,7 @@ function App() {
     setAuthError('');
     const encoded = btoa(`${username}:${password}`);
     try {
-      const response = await authorizedFetch(API, { headers: { Authorization: `Basic ${encoded}` } });
+      const response = await fetch(API, { headers: { Authorization: `Basic ${encoded}` } });
       if (!response.ok) throw new Error('Invalid credentials');
       setLeads(await response.json() as Lead[]);
       setCredentials(encoded);

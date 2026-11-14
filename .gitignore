@@ -4,3 +4,9 @@ target/
 .idea/
 .DS_Store
 .env
+
+# Browser test artifacts (may contain sensitive session state)
+playwright-report/
+test-results/
+backend-e2e.log
+backend-e2e.pid

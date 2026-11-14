@@ -77,6 +77,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/leads", "/api/tasks").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/leads/**", "/api/tasks/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(
+                        (request, response, authError) -> response.sendError(401, "Authentication required")))
                 .addFilterBefore(new SessionFreshnessFilter(users), AuthorizationFilter.class);
         if (legacyBasicEnabled) {
             http.addFilterBefore(new LoginAttemptFilter(), BasicAuthenticationFilter.class)

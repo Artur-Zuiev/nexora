@@ -1,262 +1,90 @@
 # Nexora — Business Operations Platform
 
-A full-stack **customer lead management MVP** using **Java 21, Spring Boot 3, PostgreSQL, React 19, TypeScript and Vite**.
+**Local-only CRM portfolio MVP candidate** built with Java 21, Spring Boot, PostgreSQL 17, React 19, TypeScript and Vite. The project is not publicly deployed and is **not approved for real customer data**. A tested local demonstration is the immediate milestone; production SaaS security and operations are separate work.
 
-> **Development prototype only.** The local prototype uses HTTP Basic with database-backed credentials and tenant-scoped reads; public registration, production session management, access control review, TLS termination and deployment hardening are not implemented. **Never deploy this version publicly or store real customer data.**
+## What works
 
-## Implemented
+- Leads: create, search/filter, change status and notes, inspect recent activity
+- Follow-ups: create, complete/reopen, filter overdue/today/later, search by task/customer
+- Analytics: pipeline status counts, conversion and task-completion snapshot
+- Users: local admin, administrator-managed MEMBER accounts, read-only member permissions
+- Authentication: server-side HttpOnly cookie sessions with CSRF, session revocation after account/password changes; **HTTP Basic has been removed**
+- Admin-only tenant-scoped CSV exports for leads and tasks
+- PostgreSQL Flyway migrations V1–V5, local backup/verify/restore utilities
+- Java integration tests, Chromium browser E2E tests, GitHub Actions checks
+- Responsive React layout and mobile navigation
 
-- Dashboard with total, in-progress, and won lead counts
-- Create customer leads (name and email)
-- List leads in a responsive table
-- Search leads by name, email or note; filter by status
-- Open lead details and update notes (up to 2000 characters)
-- Display the 50 most recent recorded lead events (creation, status and note changes)
-- Create follow-up tasks per lead, assign due dates, mark tasks complete, and view overdue work
-- View current CRM analytics: pipeline status counts, conversion rate, closed-lead win rate, task completion and overdue totals
-- Update lead status (New, Contacted, Qualified, Won, Lost)
-- REST API and persistent PostgreSQL storage
-- Docker Compose database for local development
+## Quick local start
+
+Requirements: **Java 21, Maven, Node.js 22, npm, Docker Desktop/Compose**.
+
+1. Start PostgreSQL: `docker compose up -d`.
+2. Set an **original local-only administrator password** of at least 12 characters in the terminal where Java starts:
+   - PowerShell: `$env:NEXORA_ADMIN_PASSWORD='replace-with-a-private-test-password'`
+   - macOS/Linux: `export NEXORA_ADMIN_PASSWORD='replace-with-a-private-test-password'`
+3. Start backend: `cd backend && mvn spring-boot:run`.
+4. In a second terminal start frontend: `cd frontend && npm install && npm run dev`.
+5. From the repository root run a read-only readiness check: `node scripts/mvp-preflight.mjs`.
+6. Visit **http://127.0.0.1:5173** and sign in as `admin` using the initial password. **On existing databases, the admin password is not reset by the environment variable.**
+
+For a reproducible walkthrough and safety checklist, see **[Local MVP demo guide](docs/mvp-demo.md)**.
 
 ## Repository
 
 ```text
-backend/               Spring Boot API and JPA persistence
-frontend/              React + TypeScript dashboard
-docker-compose.yml     Local PostgreSQL development database
+backend/          Spring Boot REST API and Flyway/PostgreSQL persistence
+frontend/         React + TypeScript dashboard and Playwright browser tests
+scripts/          Optional local demo preflight and Python backup utility
+docs/             MVP walkthrough, local recovery and security design
+docker-compose.yml  Loopback-only PostgreSQL for local development
 ```
 
-## Run locally
+## Checks
 
-**Requirements:** Java 21, Maven, Node.js, npm and Docker.
-
-1. Start local PostgreSQL: `docker compose up -d`
-2. Set a local admin password of **at least 12 characters** (do not commit it): on PowerShell, `$env:NEXORA_ADMIN_PASSWORD='choose-a-strong-local-password'`; on macOS/Linux, `export NEXORA_ADMIN_PASSWORD='choose-a-strong-local-password'`.
-3. Start API in the same terminal: `cd backend && mvn spring-boot:run`
-4. In a second terminal, start frontend: `cd frontend && npm install && npm run dev`
-5. Open `http://localhost:5173` and sign in with username `admin` and your configured password.
-
-The API is available at `http://localhost:8080`; CORS allows the local Vite development origin.
-
-### API
-
-| Method | Endpoint | Purpose |
+| Check | Command | Notes |
 | --- | --- | --- |
-| GET | `/api/me` | Current username, organization ID and role |
-| GET | `/api/security/events` | Admin-only 100 recent security events for own organization |
-| POST | `/api/me/password` | Authenticated self-service password change (old password required) |
-| POST | `/api/team/{id}/reset-password` | ADMIN-only local MEMBER password reset, requires admin password |
-| GET | `/api/team` | Admin-only team directory for the current organization |
-| POST | `/api/team` | Admin-only creation of a MEMBER in the current organization |
-| PATCH | `/api/team/{id}/enabled` | Admin-only enable or disable member account |
-| GET | `/api/leads` | List leads scoped to the current user |
-| POST | `/api/leads` | Create lead |
-| PATCH | `/api/leads/{id}/status` | Update status |
-| PATCH | `/api/leads/{id}/note` | Update note |
-| GET | `/api/leads/{id}/activities` | 50 most recent recorded events |
-| GET | `/api/tasks` | List follow-up tasks by due date |
-| GET | `/api/tasks/lead/{leadId}` | Tasks for a specific lead |
-| POST | `/api/tasks` | Create lead follow-up |
-| PATCH | `/api/tasks/{id}/status` | Set OPEN or DONE |
-
-**Before upgrading a populated local database**, back up the PostgreSQL volume. Flyway is configured to baseline a pre-existing schema at version 1 and apply version 2; this is intended only for the known local demo schema. Do not point this configuration at an unknown or production database.
-
-The starter uses demo-only local database credentials in `docker-compose.yml` and `application.properties`. Replace these and add secrets management before any deployment.
-
-## Roadmap
-
-- [x] Create-lead request DTO, field limits, status validation and structured validation errors
-- [x] Single-admin HTTP Basic for local development (not production auth)
-- [x] Database-backed users with hashed passwords and organization-aware principals (local-only)
-- [x] First role permissions: MEMBER read-only CRM, ADMIN writes and views team roster
-- [x] Admin-only local MEMBER creation and enable/disable controls
-- [x] Authenticated password change with existing password verification and PostgreSQL integration tests
-- [x] Local-only admin-assisted MEMBER recovery with administrator reauthentication
-- [x] Initial in-memory local HTTP Basic login throttling with Retry-After responses
-- [x] First-phase cookie-session API, CSRF enforcement, session invalidation on password/role/enable changes
-- [ ] Frontend migration off HTTP Basic, production session storage and full granular roles
-- [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
-- [x] Database-level organization references and tenant-safe lead foreign keys
-- [ ] Real multi-organization principal resolution and production isolation (required before user accounts)
-- [x] Tenant threat model and migration plan (`docs/tenant-isolation-design.md`)
-- [x] Flyway V1–V5 migrations, including tenant-scoped security audit history
-- [ ] Production-grade, reviewed migration and backup/restore process
-- [ ] Unit/integration tests, Testcontainers and frontend tests
-- [x] GitHub Actions build/test checks
-- [ ] Deployment and monitoring
-- [x] Basic searchable and filterable CRM workspace with editable lead notes
-- [x] Basic lead activity timeline for new events
-- [ ] Workflow automations and historical analytics
-
-## Status
-
-Version 0.1 is a portfolio starter. GitHub Actions compile and test the backend and frontend on pull requests. A full end-to-end browser test has **not yet been verified**.
-
-**Developer:** [Artur Zuiev](https://github.com/Artur-Zuiev)
-
-## Security limitations
-
-- **Local development only.** HTTP Basic credentials are transmitted on every API request; use TLS before any remote use. Do not put this prototype on a public network.
-- The server intentionally refuses to start without `NEXORA_ADMIN_PASSWORD` (12+ characters). No default admin password is shipped.
-- The frontend uses a server-managed HttpOnly session cookie and reads a CSRF token into React state. Credentials and tokens are not saved to localStorage. Old HTTP Basic is still available to legacy local API clients during this transition.
-- The app bootstraps one local admin account into PostgreSQL. Although the database can store additional users, there is **no public registration or team management UI**; do not use real customer data.
-- The database port is bound to the loopback interface for local development and uses a demo credential: replace all credentials and harden infrastructure before deployment.
-- `POST /api/leads` accepts only `name` (1–120 chars), `email` (valid, max 254 chars), and optional `note` (max 2000 chars). New leads always begin in status `NEW`.
-
-## CRM workspace (local prototype)
-
-After signing in, search the lead pipeline by name, email or note, filter by status and click **View** to see a lead's details. The note editor saves its contents using `PATCH /api/leads/{id}/note`, accepting a JSON body such as `{"note":"Follow up next week"}`. The backend validates a maximum of 2000 characters. Notes are stored on each lead; this is **not** an activity/audit history. Search and filtering currently run in the browser over the loaded leads; add server-side pagination and search for larger datasets.
-
-The development-only credentials and single-admin security limitations described above still apply. Do not deploy publicly or use real customer data.
-
-## Lead activity history
-
-The activity timeline records newly created leads and later status/note changes, with UTC timestamps. It shows the 50 most recent events per lead, ordered newest first. It intentionally records only a short event summary and never copies customer names, email addresses, or note contents into the activity log. Existing leads won't have retrospective history; only actions taken after this feature is installed are recorded. This is a basic application event history, **not** a tamper-proof compliance audit log.
-
-## Follow-up tasks
-
-Open a lead and create a task with a title and due date. Tasks appear in a global list with filters for open, completed or all. Unfinished tasks with due dates earlier than the browser's current local date are visually highlighted as overdue. These are **in-app reminders only**: no push notifications, emails, scheduled jobs or external services run. Tasks are not automatically deleted. This local single-admin prototype has no tenant isolation and is not suitable for production customer information.
-
-## Analytics dashboard
-
-The dashboard computes a **current snapshot** from the leads and tasks already loaded into the browser. Lead conversion = won leads / all leads; closed-lead win rate = won / (won + lost); task completion = completed / all tasks. Each percentage is 0% when its denominator is zero. It also shows lead counts by status and the number of open tasks whose due date is before the browser's current local date. This feature does not claim trends over time, financial revenue, or forecasting accuracy. For large datasets, add paginated backend reporting rather than browser-side totals.
-
-## Security hardening milestone
-
-The API now returns explicit `LeadResponse` and `LeadTaskResponse` objects instead of exposing mutable JPA entities directly. Both the Spring Boot server and the Docker Compose PostgreSQL host port bind to `127.0.0.1` by default. These changes reduce accidental network exposure, **but are not production authentication, account registration, or tenant isolation**. The local-only warning remains in effect. Before multiple users are created, the data model must be migrated to organization-scoped records, and every read/write must enforce that scope on the server.
-
-## Preparing for multiple organizations
-
-See [the tenant-isolation design](docs/tenant-isolation-design.md) for the required organization-scoped data model, migration plan and two-tenant authorization tests. This milestone also adds integration tests confirming that anonymous and invalid-credential requests are rejected and that the configured local admin can access the API. **Organization scoping and multiple user accounts are still not implemented.**
-
-## Tenant scoping milestone (local-only)
-
-All lead, task and activity lookups now use a server-resolved tenant identifier instead of accepting one supplied by the browser. The current admin maps to the **single fixed** `local-admin` organization; account registration and multi-organization membership are **not implemented**. New records receive that tenant ID. On startup, the temporary local database backfill assigns existing rows with missing tenant IDs to `local-admin` after Hibernate has updated the schema. This preserves existing demo data but is **not** a migration suitable for production: it lacks managed versioning, hard foreign keys, and verified rollback procedures. Back up your local PostgreSQL volume before updating a populated database.
-
-Repository-level unit tests verify that lead, task and activity operations reject records outside the resolved tenant and that new records receive their tenant ID. These do **not** certify isolation for multiple real authenticated organizations. Do not expose the service or use real customer data.
-
-## Flyway schema migrations (local-only)
-
-The backend now uses Flyway instead of Hibernate schema mutation. On an empty database, Flyway runs `V1__initial_crm_schema.sql` and `V2__tenant_scoping.sql`, after which Hibernate validates the resulting schema. Existing local Hibernate-generated demo databases without Flyway history are automatically baselined at V1 and then receive V2, including the `local-admin` tenant backfill. The previous startup-time backfill component has been removed. The integration test checks Flyway history and tenant columns against PostgreSQL in GitHub Actions.
-
-**Important:** automatic baselining assumes the existing database already has `leads`, `lead_tasks`, and `lead_activities` tables matching the earlier local prototype. There are no production guarantees. Take a PostgreSQL backup, rehearse restoration, and review the schema before upgrading existing data; never enable automatic baseline against an unknown database. For production, implement an explicit reviewed migration path, foreign keys, organization membership, and backup/restore tests. Application login is still single-admin only.
-
-## Database-level organization integrity (V3)
-
-Flyway V3 creates the `organizations` table with a single local demo organization and adds foreign keys from leads, tasks and activity records. Tasks and activity records additionally reference the composite key `(tenant_id, lead_id)` on their parent lead: a child row cannot reference another organization's lead even if a faulty future API tries to insert one. The PostgreSQL integration test checks this invariant. This is useful defense in depth but **does not constitute user authentication, account membership or safe multi-user deployment**.
-
-**Existing local data:** V3 refuses to run if there are orphaned tasks or activity records, unknown tenant identifiers or other inconsistent demo data. Back up the database first and inspect/correct it manually rather than silently deleting records. Neither this migration nor the repository tests have been validated against any individual user's existing PostgreSQL volume.
-
-## Database-backed accounts (local-only)
-
-Flyway V4 creates `app_users` containing username, hashed password, enabled flag, role and organization ID. Spring Security now authenticates against these records. On the **first startup** the existing `NEXORA_ADMIN_PASSWORD` environment variable seeds the `admin` account in the `local-admin` organization using Spring Security's delegating password encoder (bcrypt hash). The existing admin password is **not automatically changed** on subsequent restarts; changing the environment variable alone does not rotate the stored password. Do not lose the original local password. This is still a development-only bootstrap and not a password recovery mechanism.
-
-The authenticated server-side identity provides organization scope to all CRM controllers. The new authenticated `GET /api/me` returns only username, organization ID and role. A PostgreSQL-backed integration test uses two organizations and accounts to verify separate lead listings and reject cross-organization activity access and task creation.
-
-**Not implemented:** self-registration, user invitations, admin team management, fine-grained authorization of ADMIN vs MEMBER actions, password resets, secure sessions, TLS or an approval for public deployment. HTTP Basic remains local only; never expose it on the internet or enter real customer records. Back up any existing local database before the V4 upgrade.
-
-## Team roles — initial access rules
-
-- `ADMIN`: can read and modify leads and tasks, view the team roster for their own organization.
-- `MEMBER`: can read only their own organization's leads, activities and tasks; cannot create or update leads/tasks or list team members.
-- `GET /api/team` returns only an organization's usernames, roles, account enabled flags and creation timestamps. It never returns password hashes.
-
-Role checks run in Spring Security on the server. This milestone **does not** implement invitations, creating or disabling users via API, self-registration, admin UI, password rotation, sessions or production hardening. Accounts can currently be inserted only through controlled development/testing database setup. The existing HTTP Basic login remains **local-only**, and no real customer data should be stored.
-
-## Local team management (no paid services)
-
-The admin dashboard now has a **Team members** section where an ADMIN can create a MEMBER account by entering a unique username and a password of 12–128 characters. The password is bcrypt-hashed through Spring Security before being stored in PostgreSQL. The API never returns passwords or password hashes. Username is unique across the whole local database, not only within an organization. Members have read-only CRM access. An ADMIN can disable/re-enable MEMBER accounts, with tenant-scoped server queries; disabling the current administrator or another ADMIN is rejected. Disabled users cannot log in on subsequent requests.
-
-**Important limitations:** This is a **local developer-controlled mechanism**, not email invitation delivery and not production user management. The admin must communicate an initial password through an appropriate secure channel; there is no invitation email or self-service password reset. HTTP Basic remains local-only, password rotation/first-login reset are not yet implemented, and no real customer data should be entered. Do not forward passwords in unencrypted messages or enable public access. No paid services or hosting were added.
-
-## Self-service password change (local only)
-
-Any authenticated ADMIN or MEMBER can change their own password from **Account security** by supplying the current password and a different 12–128 character replacement. The backend verifies the existing encoded password and stores a newly hashed replacement. The browser clears its in-memory HTTP Basic credentials and signs out after success. Previous credentials stop authenticating subsequent requests; HTTP Basic does **not** revoke already-running requests or provide secure sessions. Passwords are not stored in the frontend or returned by the API.
-
-This feature is not a forgotten-password recovery mechanism. No email sending, paid provider, password-reset token, TLS, production session management or public registration is implemented. Do not use the prototype with real account credentials or expose it beyond localhost.
-
-## Password rotation integration verification
-
-Automated Spring Security and PostgreSQL tests now verify that a successful password change stores a new encoded password, rejects the previous login credentials, and accepts the replacement credentials. Negative tests cover incorrect current passwords, reusing the currently stored password, and too-short replacements. This does **not** prevent reuse of passwords from older rotations, provide password recovery, invalidate already-running HTTP requests, or provide production sessions. No paid provider or external service is needed.
-
-## Local administrator-assisted account recovery
-
-When a MEMBER forgets their password, an ADMIN may use the Team members **Reset password** action. The admin must re-enter their own existing password and set a distinct new password (12–128 characters). The server verifies the admin again, restricts the account lookup to their organization, rejects ADMIN or disabled targets, and hashes the replacement. The API response does not contain the password. The old member password then stops working for new Basic-authenticated requests. There is no email delivery and no paid service.
-
-**This is not production-grade password recovery.** Admins must communicate the replacement through an appropriate secure channel; the application has no first-login forced password change, MFA, audit event log, per-account rate limiting or secure browser sessions. It remains bound to localhost; do not expose it or use real customer accounts. Admin recovery of their own forgotten password is not implemented.
-
-## Security activity log (local-only)
-
-Flyway V5 adds a database-backed, per-organization timeline for successful member creation, enabling/disabling members, member password reset, and self-service password changes. Administrators can view the last 100 events in the **Security history** panel or through `GET /api/security/events`. Events store only the event type, time, actor username, target username and tenant ID — **never passwords, hashes or request bodies**. Member accounts cannot query the audit endpoint. The event insert uses the same database transaction as the state change so both changes commit or roll back together.
-
-This is an application activity record, **not** a tamper-proof compliance audit, an intrusion detector, or failed-login monitoring. No brute-force throttling or IP-based monitoring is implemented in this step. Logs need retention, access review, and production controls before using real data. This milestone adds no external services or paid subscriptions.
-
-## Local login-attempt throttling
-
-A Spring Security filter blocks **a username + observed remote IP address** after 5 Basic-authentication failures during a 15-minute window. Blocked API calls return HTTP **429** with `Retry-After`; the sign-in form explains the temporary wait. A successful authenticated request clears that username/IP counter. Requests without Basic credentials do not count toward a user's failed-password attempts. The filter stores neither passwords nor Authorization headers and never trusts `X-Forwarded-For`. Unit tests cover the threshold, reset, scope, and expiry.
-
-**Limitations:** This is a single-process **local development** defense only. Counters disappear on application restart and can be evaded using alternate usernames or addresses. Username/IP keyed throttling can also temporarily affect legitimate access if someone guesses a username. There is no shared/distributed limiter, durable lockout state, protected reverse proxy, MFA, or failed-attempt alerting. This is **not production-ready brute-force prevention**; do not open the prototype to external networks. No hosting, paid tools or subscriptions were added.
-
-## Browser sessions — first phase, local-only
-
-The backend provides an experimental cookie-backed session flow and the **React frontend now uses it**. This is deliberately incremental: the current React app still signs in using Basic until the session-based frontend migration and its own tests are complete. Session users have the same organization/role controls.
-
-1. Call `GET /api/session/csrf` and retain the returned `headerName` and `token`, along with the server's HttpOnly session cookie.
-2. Send `POST /api/session/login` with `{"username":"...","password":"..."}`, the CSRF header and the session cookie. A successful login rotates the session ID.
-3. Send the cookie on later API requests. For every non-safe HTTP method, include a valid CSRF header; without it, the server returns 403.
-4. Send `POST /api/session/logout` with the CSRF header to invalidate the session.
-
-The server checks session-backed identities against the stored account on each request: disabling an account, changing its password or role, or changing its organization invalidates its old session. JSON login has a separate in-memory 5-attempt/15-minute limiter. The server session is local-process memory and is lost on restart. The cookie is HttpOnly and SameSite=Lax, and local development has **no HTTPS**; never expose this implementation publicly. HTTP Basic stays temporarily enabled for old local development clients and tests, with their existing CSRF exemption, until the frontend is fully migrated. This stage is **not** a production-grade authentication system, and no payment or hosting is involved.
-
-## Local React session migration
-
-The Vite dev server proxies `/api` requests to the locally bound Spring Boot server on `127.0.0.1:8080`. This puts cookies and API requests on one browser origin, avoiding cross-origin credential cookies. React fetches a CSRF token, signs in with `POST /api/session/login`, sends the cookie on API requests, and supplies CSRF on unsafe methods. After a page reload it checks `GET /api/me` to restore a valid server session. Logout calls `POST /api/session/logout` and clears application state; changing password also signs the user out.
-
-**Still to do:** Retire legacy HTTP Basic completely and remove its temporary CSRF exemption, add frontend browser-level end-to-end tests, harden logout under network failure, and configure HTTPS plus secure cookies for any eventual public deployment. Never deploy this version or enter real client credentials. No new paid services are used.
-
-## Default session-only authentication
-
-The standard application configuration now rejects HTTP Basic authentication. The old Basic filter and its CSRF bypass are attached **only** when the explicit `nexora.security.legacy-basic-enabled=true` setting is used. Do not enable it for normal application use. Older integration tests temporarily opt into compatibility mode through `backend/src/test/resources/application.properties`. A separate production-mode test overrides the setting to `false` and checks that Basic headers cannot authenticate or bypass CSRF. The normal React frontend already uses cookie sessions.
-
-**Remaining:** Migrate older integration tests to session login and delete the temporary compatibility mode entirely. Session cookies are local-only, with no TLS or shared session store. No paid services, deployment, or real customer data involved.
-
-## Session-only authentication and tests
-
-All backend integration tests for authorization, team administration, password rotation, audit, and account recovery now use actual `/api/session/login` with CSRF-protected cookie sessions. The temporary `nexora.security.legacy-basic-enabled` toggle, Basic authentication filter, and Basic-only throttle have been **removed**. Standard Spring Security CSRF protection applies to all unsafe methods, including requests with an injected Basic header. Login failures for the JSON session endpoint continue to use the bounded local `SessionLoginLimiter`.
-
-The test helper `SessionTestSupport` exercises real authentication rather than bypassing security with mocked roles. This remains a localhost-only prototype without HTTPS, MFA, shared session storage, or publicly safe account recovery. No paid service was added.
-
-## Chromium browser E2E smoke checks (local demo only)
-
-The `frontend/e2e/crm.spec.ts` Playwright suite runs Chromium against the actual React/Vite interface, local Spring Boot API and disposable PostgreSQL test database. It verifies that admin login survives reload, logout removes access, an admin can add/search a synthetic lead, and a newly created MEMBER sees a read-only workspace. No real customers or external services are involved.
-
-To run locally after starting Docker/PostgreSQL and Spring Boot with a **disposable** admin account:
-
-```sh
-cd frontend
-npm install
-npx playwright install chromium
-E2E_ADMIN_PASSWORD='your-local-test-admin-password' npm run test:e2e
-```
-
-On PowerShell, set `$env:E2E_ADMIN_PASSWORD='your-local-test-admin-password'` before running `npm run test:e2e`. The frontend test runner starts its own localhost Vite server and proxies API calls to `127.0.0.1:8080`. Tests create disposable records; use a dedicated throwaway database, never a real/customer database. GitHub Actions runs these checks in a separate free/open-source Chromium job with isolated Postgres and hard-coded **CI-only** credentials. Playwright trace/video/screenshots and artifact upload are intentionally disabled to avoid exposing credentials/cookies. GitHub-hosted runner usage still counts toward your account's applicable Actions quotas; no paid service or upgrade was enabled.
-
-## Dashboard interface refresh
-
-The local CRM dashboard has a refined responsive visual hierarchy, improved metric cards, focus-visible input/button styling, accessible actual sidebar links to overview, pipeline, follow-ups, analytics, team, audit history, and account security, plus a horizontally scrollable navigation bar on mobile. The dashboard retains the existing account roles and business logic. Playwright exercises navigation on desktop and at a narrow mobile viewport. No image, design library, CDN, paid assets or external services were introduced.
-
-## Local backup and recovery tools
-
-See [local backup & recovery instructions](docs/local-backups.md). `python scripts/db_backup.py backup --output backups/nexora-demo.dump` creates a PostgreSQL custom-format archive with a SHA-256 companion file; `verify` checks integrity, and `restore` requires an explicit confirmation and creates a **new** database without overwriting `nexora`. A dedicated GitHub Action tests the backup and restore with synthetic demo data. Backups contain sensitive records and password hashes; store privately, never in Git. These utilities are local-only, not production disaster recovery, and no paid storage/provider is added.
-
-## Follow-up task workspace improvements
-
-The React workspace now groups open follow-ups by **overdue**, **due today**, and **later**, with counters and selectable priority filters. You can also display all or completed tasks and search by task title, customer name, or customer email. The task list is ordered by due date, and clicking a customer from a task opens their CRM record. Completion and reopening still use the existing tenant-scoped Java REST API, and read-only members cannot modify tasks. The filters run locally over loaded demo data; no scheduled reminders or email delivery are included. A Chromium E2E scenario verifies creating a synthetic task, filtering, searching, navigating to the customer and marking it complete.
-
-## Secure local CSV exports
-
-Authenticated **ADMIN** accounts can download UTF-8 CSV files using the **Export leads CSV** and **Export tasks CSV** buttons in the dashboard. Matching endpoints: `GET /api/exports/leads.csv` and `GET /api/exports/tasks.csv`. The backend queries PostgreSQL using the authenticated organization's tenant ID and does not accept a tenant parameter from the browser. `MEMBER` accounts cannot call these endpoints. Downloads include all records for the admin's organization, not just currently filtered rows.
-
-The CSV files include a UTF-8 BOM and escaped quoted cells, with an apostrophe added to text that could otherwise be interpreted as spreadsheet formulas (including text with leading whitespace). CSV responses use `Cache-Control: no-store`. Unit and PostgreSQL integration tests check quoting, formula mitigation, tenant isolation and access control, and Chromium tests exercise actual downloads.
-
-**Security:** CSVs contain customer names, emails and notes, so treat downloads as sensitive files. Keep them encrypted/private and do not share them or open untrusted modified CSVs. The formula mitigation is defense-in-depth, not a guarantee for all spreadsheet versions. This is a local prototype only; there is no audit of every download, export size limitation, or production data governance. No paid services were added.
+| Readiness script unit tests | `node --test scripts/mvp-preflight.test.mjs` | No running services required |
+| Local services ready | `node scripts/mvp-preflight.mjs` | Read-only localhost HTTP checks; not a security review |
+| Java backend tests | `cd backend && mvn verify` | Requires configured disposable PostgreSQL |
+| React build | `cd frontend && npm run build` | TypeScript + production bundle |
+| Chromium E2E | `cd frontend && npm run test:e2e` | Requires backend, browser and `E2E_ADMIN_PASSWORD`; **creates demo data** |
+| Local database backup | `python scripts/db_backup.py backup --output backups/nexora-demo.dump` | Archive contains sensitive records and password hashes |
+
+GitHub Actions also runs Chromium E2E and a synthetic-data PostgreSQL backup/restore smoke test. These jobs use available GitHub Actions quota; no paid plan or external service is connected.
+
+## Local API
+
+| Endpoint | Role/purpose |
+| --- | --- |
+| `GET /api/session/csrf`, `POST /api/session/login`, `POST /api/session/logout` | CSRF + cookie sessions |
+| `GET /api/me`, `POST /api/me/password` | Current account and own password change |
+| `GET/POST /api/leads`, `PATCH /api/leads/{id}/status`, `PATCH /api/leads/{id}/note` | Tenant-scoped CRM (writes ADMIN) |
+| `GET /api/leads/{id}/activities` | Lead activity history |
+| `GET/POST /api/tasks`, `PATCH /api/tasks/{id}/status` | Tenant-scoped follow-ups (writes ADMIN) |
+| `GET/POST /api/team`, `PATCH /api/team/{id}/enabled` | ADMIN team management |
+| `POST /api/team/{id}/reset-password`, `GET /api/security/events` | ADMIN member password recovery and audit |
+| `GET /api/exports/leads.csv`, `GET /api/exports/tasks.csv` | ADMIN tenant-scoped CSV exports |
+
+## Security and release boundaries
+
+- **Local development only:** backend and PostgreSQL are bound to loopback, with demo database credentials. No TLS, production secure cookies, public deployment or real customer accounts.
+- Passwords are hashed, but the local bootstrap environment variable **does not rotate an existing admin password**. Do not commit secrets or copy real records into demo data.
+- Sessions use in-process memory and are lost on restart. Login throttling is in-memory rather than a distributed, durable protection; no MFA or production identity provider.
+- Server-side tenant scoping and test coverage exist, but there is no production multi-tenant security approval, privacy impact assessment, monitoring or external penetration test.
+- Browser-side lists are not paginated. CSV exports contain entire tenant datasets and must be protected as confidential files. Backups are not encrypted automatically.
+- The [migration and tenant design](docs/tenant-isolation-design.md) and [backup guide](docs/local-backups.md) describe limits and local procedures. Do not deploy publicly or store real customer data.
+
+## Next milestones
+
+- [x] Functional leads, tasks, analytics, audit and role management
+- [x] Cookie sessions and CSRF; removal of HTTP Basic
+- [x] Browser E2E for key administrator/member flows
+- [x] Local backup/restore verification and CSV exports
+- [x] Read-only localhost readiness helper and repeatable demo instructions
+- [ ] Manual acceptance check on a local machine with disposable data
+- [ ] Review accessibility, security hardening, scaling and production migration needs
+- [ ] Only after explicit approval: evaluate public hosting, costs and operational safeguards
+
+**Project:** [Artur-Zuiev/nexora](https://github.com/Artur-Zuiev/nexora) · **Developer:** [Artur Zuiev](https://github.com/Artur-Zuiev)
+
+Note: the Git history preserves earlier milestone documentation, which contained outdated statements about HTTP Basic and other now-completed features. This README reflects the current codebase.

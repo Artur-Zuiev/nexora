@@ -9,6 +9,8 @@ A full-stack **customer lead management MVP** using **Java 21, Spring Boot 3, Po
 - Dashboard with total, in-progress, and won lead counts
 - Create customer leads (name and email)
 - List leads in a responsive table
+- Search leads by name, email or note; filter by status
+- Open lead details and update notes (up to 2000 characters)
 - Update lead status (New, Contacted, Qualified, Won, Lost)
 - REST API and persistent PostgreSQL storage
 - Docker Compose database for local development
@@ -40,6 +42,7 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 | GET | `/api/leads` | List all leads |
 | POST | `/api/leads` | Create lead |
 | PATCH | `/api/leads/{id}/status` | Update status |
+| PATCH | `/api/leads/{id}/note` | Update note |
 
 The starter uses demo-only local database credentials in `docker-compose.yml` and `application.properties`. Replace these and add secrets management before any deployment.
 
@@ -52,7 +55,8 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [ ] Flyway migrations
 - [ ] Unit/integration tests, Testcontainers and frontend tests
 - [ ] CI pipeline, deployment, monitoring
-- [ ] Customer activities, workflow automations and analytics
+- [x] Basic searchable and filterable CRM workspace with editable lead notes
+- [ ] Activity timeline, workflow automations and analytics
 
 ## Status
 
@@ -68,3 +72,9 @@ Version 0.1 is a portfolio starter. CI build and end-to-end functionality have *
 - The app has one shared local admin account, no self-registration or tenant isolation; do not use real customer data.
 - The database is exposed on localhost for local development and uses a demo credential: replace all credentials and harden infrastructure before deployment.
 - `POST /api/leads` accepts only `name` (1–120 chars), `email` (valid, max 254 chars), and optional `note` (max 2000 chars). New leads always begin in status `NEW`.
+
+## CRM workspace (local prototype)
+
+After signing in, search the lead pipeline by name, email or note, filter by status and click **View** to see a lead's details. The note editor saves its contents using `PATCH /api/leads/{id}/note`, accepting a JSON body such as `{"note":"Follow up next week"}`. The backend validates a maximum of 2000 characters. Notes are stored on each lead; this is **not** an activity/audit history. Search and filtering currently run in the browser over the loaded leads; add server-side pagination and search for larger datasets.
+
+The development-only credentials and single-admin security limitations described above still apply. Do not deploy publicly or use real customer data.

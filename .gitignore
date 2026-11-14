@@ -10,3 +10,8 @@ playwright-report/
 test-results/
 backend-e2e.log
 backend-e2e.pid
+
+# Sensitive local database backups and manifests
+backups/
+*.dump
+*.dump.sha256

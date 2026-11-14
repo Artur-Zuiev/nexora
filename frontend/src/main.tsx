@@ -237,6 +237,29 @@ function App() {
     }
   }
 
+  async function downloadCsv(kind: 'leads' | 'tasks') {
+    setError('');
+    try {
+      const response = await api(`/api/exports/${kind}.csv`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `nexora-${kind}.csv`;
+      document.body.appendChild(link);
+      try {
+        link.click();
+      } finally {
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message !== 'Unauthorized') {
+        setError('Could not export data. Check your connection and try again.');
+      }
+    }
+  }
+
   async function loadTasks() {
     try {
       const response = await api(TASK_API);
@@ -588,7 +611,7 @@ function App() {
           </form>
         </section>}
         <section id="pipeline" className="panel">
-          <div className="panel-header"><h2>Lead pipeline</h2><span>{filtered.length} of {leads.length} records</span></div>
+          <div className="panel-header"><h2>Lead pipeline</h2><div className="panel-actions"><span>{filtered.length} of {leads.length} records</span>{canEdit && <button type="button" className="secondary-button export-button" onClick={() => void downloadCsv('leads')}>Export leads CSV</button>}</div></div>
           <div className="toolbar">
             <label><span>Search leads</span><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Name, email or notes" /></label>
             <label><span>Filter by status</span><select value={filter} onChange={e => setFilter(e.target.value as StatusFilter)}>
@@ -613,7 +636,7 @@ function App() {
             </table></div>}
         </section>
         <section id="tasks" className="panel">
-          <div className="panel-header"><h2>Follow-up tasks</h2><span>{overdue} overdue · {upcoming} upcoming</span></div>
+          <div className="panel-header"><h2>Follow-up tasks</h2><div className="panel-actions"><span>{overdue} overdue · {upcoming} upcoming</span>{canEdit && <button type="button" className="secondary-button export-button" onClick={() => void downloadCsv('tasks')}>Export tasks CSV</button>}</div></div>
           <div className="task-summary" aria-label="Follow-up priorities">
             <button type="button" className={taskFilter === 'OVERDUE' ? 'task-priority active' : 'task-priority'} aria-pressed={taskFilter === 'OVERDUE'} onClick={() => setTaskFilter('OVERDUE')}>
               <span>Overdue</span><strong>{tasks.filter(task => task.status === 'OPEN' && task.dueDate < localToday()).length}</strong>

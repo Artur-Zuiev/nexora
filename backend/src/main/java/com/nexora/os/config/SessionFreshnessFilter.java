@@ -33,7 +33,7 @@ public class SessionFreshnessFilter extends OncePerRequestFilter {
             if (current == null || !current.enabled
                     || !Objects.equals(current.tenantId, principal.tenantId())
                     || !Objects.equals(current.role.name(), principal.role())
-                    || !Objects.equals(current.passwordHash, principal.getPassword())) {
+                    || !Objects.equals(NexoraPrincipal.fingerprint(current.passwordHash), principal.credentialFingerprint())) {
                 new SecurityContextLogoutHandler().logout(request, response, authentication);
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Session expired");
                 return;

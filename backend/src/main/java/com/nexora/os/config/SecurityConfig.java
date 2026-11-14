@@ -60,7 +60,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/session/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/session/login").permitAll()
-                        .requestMatchers("/api/team", "/api/team/**", "/api/security/events").hasRole("ADMIN")
+                        .requestMatchers("/api/team", "/api/team/**", "/api/security/events", "/api/exports/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/leads", "/api/tasks").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/leads/**", "/api/tasks/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

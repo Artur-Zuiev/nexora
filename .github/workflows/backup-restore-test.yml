@@ -19,20 +19,31 @@ jobs:
           python-version: '3.12'
       - name: Start disposable local PostgreSQL
         run: docker compose up -d --wait
-      - name: Wait until PostgreSQL accepts connections
+      - name: Wait for stable PostgreSQL startup and seed synthetic data
         run: |
-          for i in $(seq 1 60); do
-            if docker compose exec -T postgres pg_isready -U nexora -d nexora >/dev/null 2>&1; then
-              exit 0
+          # The official Postgres image uses a temporary server during first-time init.
+          # Require real SQL success over multiple checks, then retry the seed.
+          stable=0
+          for i in $(seq 1 90); do
+            if docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U nexora -d nexora -tAc "SELECT 1" >/dev/null 2>&1; then
+              stable=$((stable + 1))
+              if [ "$stable" -ge 3 ]; then break; fi
+            else
+              stable=0
             fi
             sleep 2
           done
-          docker compose logs postgres
-          exit 1
-      - name: Seed synthetic data
-        run: |
-          docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U nexora -d nexora -c \
-            "CREATE TABLE backup_smoke (id integer PRIMARY KEY, label text NOT NULL); INSERT INTO backup_smoke VALUES (1, 'synthetic-only');"
+          if [ "$stable" -lt 3 ]; then docker compose logs postgres; exit 1; fi
+          seeded=0
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U nexora -d nexora -c \
+              "CREATE TABLE backup_smoke (id integer PRIMARY KEY, label text NOT NULL); INSERT INTO backup_smoke VALUES (1, 'synthetic-only');"; then
+              seeded=1
+              break
+            fi
+            sleep 2
+          done
+          test "$seeded" = "1"
       - name: Run backup and verify
         run: |
           python scripts/db_backup.py backup --output /tmp/nexora-ci-smoke.dump

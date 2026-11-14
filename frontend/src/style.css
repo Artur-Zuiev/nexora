@@ -182,3 +182,8 @@ td{color:#55637a;line-height:1.45}
 #lead-detail{scroll-margin-top:25px}
 @media(max-width:850px){.task-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.task-toolbar .secondary-button{grid-column:1/-1}}
 @media(max-width:560px){.task-summary{gap:7px}.task-priority{padding:12px 9px;display:grid;gap:5px}.task-priority span{font-size:11px}.task-priority strong{font-size:22px}.task-toolbar{grid-template-columns:1fr}.task-toolbar .secondary-button{grid-column:auto}}
+
+/* Bulk export actions stay available without crowding compact headers. */
+.panel-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.export-button{font-size:12px;padding:9px 12px;white-space:nowrap}
+@media(max-width:560px){.panel-actions{justify-content:flex-start;width:100%}.export-button{width:auto}}

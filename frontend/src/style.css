@@ -32,3 +32,9 @@ button:disabled{opacity:.56;cursor:not-allowed}
 .activity-history li div{display:grid;gap:4px}
 .activity-history li strong{font-size:13px;font-weight:650;color:#293d59}
 .activity-history li small{font-size:12px;color:#8190a3}
+
+.follow-up-form{border-top:1px solid #e5eaf2;margin-top:26px;padding-top:22px}
+.follow-up-form h3{font-size:16px;margin:0 0 18px}
+.follow-up-form input[type="date"]{width:100%}
+.overdue{font-weight:700;color:#bd2e42}
+@media(max-width:850px){.follow-up-form form{align-items:stretch}}

@@ -5,8 +5,11 @@ import './style.css';
 type Status = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'WON' | 'LOST';
 type Lead = { id: number; name: string; email: string; note: string | null; status: Status };
 type StatusFilter = Status | 'ALL';
+type LeadTask = { id: number; leadId: number; title: string; dueDate: string; status: 'OPEN' | 'DONE' };
 type LeadActivity = { id: number; kind: 'CREATED' | 'STATUS_CHANGED' | 'NOTE_UPDATED'; summary: string; createdAt: string };
 const API = 'http://localhost:8080/api/leads';
+const TASK_API = 'http://localhost:8080/api/tasks';
+function localToday() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 const statuses: Status[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'WON', 'LOST'];
 const labels: Record<Status, string> = {
   NEW: 'New', CONTACTED: 'Contacted', QUALIFIED: 'Qualified', WON: 'Won', LOST: 'Lost'
@@ -18,6 +21,10 @@ function App() {
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [tasks, setTasks] = useState<LeadTask[]>([]);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDue, setTaskDue] = useState(localToday());
+  const [taskFilter, setTaskFilter] = useState<'OPEN' | 'ALL' | 'DONE'>('OPEN');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [search, setSearch] = useState('');
@@ -32,6 +39,10 @@ function App() {
   const [saving, setSaving] = useState(false);
 
   const selected = leads.find(lead => lead.id === selectedId) ?? null;
+  const shownTasks = useMemo(() => tasks.filter(task => taskFilter === 'ALL' || task.status === taskFilter), [tasks, taskFilter]);
+  const overdue = tasks.filter(task => task.status === 'OPEN' && task.dueDate < localToday()).length;
+  const upcoming = tasks.filter(task => task.status === 'OPEN' && task.dueDate >= localToday()).length;
+  const leadName = (id: number) => leads.find(lead => lead.id === id)?.name ?? `Lead #${id}`;
   const filtered = useMemo(() => leads.filter(lead => {
     const q = search.trim().toLocaleLowerCase();
     const matchesSearch = !q || [lead.name, lead.email, lead.note ?? '']
@@ -43,6 +54,7 @@ function App() {
     setAuth('');
     setPassword('');
     setLeads([]);
+    setTasks([]);
     setSelectedId(null);
     setNote('');
     setActivity([]);
@@ -103,7 +115,47 @@ function App() {
     }
   }
 
-  useEffect(() => { if (auth) void load(); }, [auth]);
+  async function loadTasks() {
+    try {
+      const response = await api(TASK_API);
+      setTasks(await response.json() as LeadTask[]);
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not load follow-up tasks.');
+    }
+  }
+
+  useEffect(() => { if (auth) { void load(); void loadTasks(); } }, [auth]);
+
+  async function addTask(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected) return;
+    setSaving(true); setError(''); setSuccess('');
+    try {
+      await api(TASK_API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: selected.id, title: taskTitle.trim(), dueDate: taskDue })
+      });
+      setTaskTitle('');
+      await loadTasks();
+      setSuccess('Follow-up task created.');
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not create task.');
+    } finally { setSaving(false); }
+  }
+
+  async function updateTask(id: number, status: 'OPEN' | 'DONE') {
+    setSaving(true); setError(''); setSuccess('');
+    try {
+      await api(`${TASK_API}/${id}/status`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      await loadTasks();
+      setSuccess(status === 'DONE' ? 'Task completed.' : 'Task reopened.');
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not update task.');
+    } finally { setSaving(false); }
+  }
 
   async function add(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -272,6 +324,26 @@ function App() {
               </tr>)}</tbody>
             </table></div>}
         </section>
+        <section className="panel">
+          <div className="panel-header"><h2>Follow-up tasks</h2><span>{overdue} overdue · {upcoming} upcoming</span></div>
+          <div className="toolbar">
+            <label><span>Show tasks</span><select value={taskFilter} onChange={e => setTaskFilter(e.target.value as 'OPEN' | 'ALL' | 'DONE')}>
+              <option value="OPEN">Open</option><option value="ALL">All</option><option value="DONE">Completed</option>
+            </select></label>
+          </div>
+          {shownTasks.length === 0 ? <p className="empty">No tasks in this view. Open a lead to create a follow-up.</p> :
+            <div className="table-wrap"><table>
+              <thead><tr><th>Task</th><th>Customer</th><th>Due</th><th>Status</th></tr></thead>
+              <tbody>{shownTasks.map(task => <tr key={task.id}>
+                <td><strong>{task.title}</strong></td>
+                <td>{leadName(task.leadId)}</td>
+                <td><span className={task.status === 'OPEN' && task.dueDate < localToday() ? 'overdue' : ''}>{task.dueDate}{task.status === 'OPEN' && task.dueDate < localToday() ? ' · Overdue' : ''}</span></td>
+                <td><button disabled={saving} type="button" className="secondary-button" onClick={() => void updateTask(task.id, task.status === 'OPEN' ? 'DONE' : 'OPEN')}>
+                  {task.status === 'OPEN' ? 'Mark done' : 'Reopen'}
+                </button></td>
+              </tr>)}</tbody>
+            </table></div>}
+        </section>
         {selected && <section className="panel lead-detail" aria-label="Lead details">
           <div className="panel-header">
             <div><span className="eyebrow">LEAD DETAILS</span><h2>{selected.name}</h2></div>
@@ -284,6 +356,14 @@ function App() {
             <textarea id="lead-note" rows={5} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} placeholder="Follow-up details, customer needs, next steps…" />
             <div className="note-actions"><small>{note.length} / 2000</small><button disabled={saving || note === (selected.note ?? '')} type="submit">Save note</button></div>
           </form>
+          <div className="follow-up-form">
+            <h3>New follow-up</h3>
+            <form onSubmit={addTask}>
+              <label><span>Task</span><input required maxLength={160} value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Call customer" /></label>
+              <label><span>Due date</span><input required type="date" value={taskDue} onChange={e => setTaskDue(e.target.value)} /></label>
+              <button disabled={saving} type="submit">Add task</button>
+            </form>
+          </div>
           <div className="activity-history">
             <h3>Recent activity</h3>
             {activityLoading ? <p className="empty">Loading activity…</p> : activity.length === 0 ?

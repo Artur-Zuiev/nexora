@@ -72,6 +72,7 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Admin-only local MEMBER creation and enable/disable controls
 - [x] Authenticated password change with existing password verification and PostgreSQL integration tests
 - [x] Local-only admin-assisted MEMBER recovery with administrator reauthentication
+- [x] Initial in-memory local HTTP Basic login throttling with Retry-After responses
 - [ ] Invitation delivery, self-service forgotten-password reset, sessions and full granular role permissions
 - [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
 - [x] Database-level organization references and tenant-safe lead foreign keys
@@ -188,3 +189,9 @@ When a MEMBER forgets their password, an ADMIN may use the Team members **Reset 
 Flyway V5 adds a database-backed, per-organization timeline for successful member creation, enabling/disabling members, member password reset, and self-service password changes. Administrators can view the last 100 events in the **Security history** panel or through `GET /api/security/events`. Events store only the event type, time, actor username, target username and tenant ID — **never passwords, hashes or request bodies**. Member accounts cannot query the audit endpoint. The event insert uses the same database transaction as the state change so both changes commit or roll back together.
 
 This is an application activity record, **not** a tamper-proof compliance audit, an intrusion detector, or failed-login monitoring. No brute-force throttling or IP-based monitoring is implemented in this step. Logs need retention, access review, and production controls before using real data. This milestone adds no external services or paid subscriptions.
+
+## Local login-attempt throttling
+
+A Spring Security filter blocks **a username + observed remote IP address** after 5 Basic-authentication failures during a 15-minute window. Blocked API calls return HTTP **429** with `Retry-After`; the sign-in form explains the temporary wait. A successful authenticated request clears that username/IP counter. Requests without Basic credentials do not count toward a user's failed-password attempts. The filter stores neither passwords nor Authorization headers and never trusts `X-Forwarded-For`. Unit tests cover the threshold, reset, scope, and expiry.
+
+**Limitations:** This is a single-process **local development** defense only. Counters disappear on application restart and can be evaded using alternate usernames or addresses. Username/IP keyed throttling can also temporarily affect legitimate access if someone guesses a username. There is no shared/distributed limiter, durable lockout state, protected reverse proxy, MFA, or failed-attempt alerting. This is **not production-ready brute-force prevention**; do not open the prototype to external networks. No hosting, paid tools or subscriptions were added.

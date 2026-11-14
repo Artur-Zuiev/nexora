@@ -124,3 +124,31 @@ test('follow-up priorities, task search and customer navigation', async ({ page 
   await taskPanel.getByRole('combobox', { name: 'Show tasks' }).selectOption('DONE');
   await expect(taskPanel.getByRole('row', { name: new RegExp(title) })).toBeVisible();
 });
+
+test('admin downloads tenant-scoped CSV data from the CRM', async ({ page }) => {
+  await signIn(page);
+  const leadDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export leads CSV' }).click();
+  const leadsFile = await leadDownload;
+  expect(leadsFile.suggestedFilename()).toBe('nexora-leads.csv');
+
+  const taskDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export tasks CSV' }).click();
+  const tasksFile = await taskDownload;
+  expect(tasksFile.suggestedFilename()).toBe('nexora-tasks.csv');
+});
+
+test('members cannot see bulk CSV export controls', async ({ page }) => {
+  await signIn(page);
+  const unique = Date.now().toString(36);
+  const username = `csv-member-${unique}`;
+  const password = `csv-member-secret-${unique}-123`;
+  await page.getByRole('textbox', { name: 'New member username' }).fill(username);
+  await page.getByLabel('Temporary password (12+ characters)').fill(password);
+  await page.getByRole('button', { name: 'Create member' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Member created' })).toBeVisible();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signIn(page, username, password);
+  await expect(page.getByRole('button', { name: 'Export leads CSV' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Export tasks CSV' })).toHaveCount(0);
+});

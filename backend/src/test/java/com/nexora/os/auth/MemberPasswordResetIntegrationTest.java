@@ -50,8 +50,7 @@ class MemberPasswordResetIntegrationTest {
                 .andExpect(status().isOk());
         assertTrue(encoder.matches(replacement,
                 jdbc.queryForObject("SELECT password_hash FROM app_users WHERE id = ?", String.class, id)));
-        mvc.perform(get("/api/me").with(SessionTestSupport.asUser(mvc, username, old)))
-                .andExpect(status().isUnauthorized());
+        SessionTestSupport.expectLoginFailure(mvc, username, old);
         mvc.perform(get("/api/me").with(SessionTestSupport.asUser(mvc, username, replacement)))
                 .andExpect(status().isOk());
     }

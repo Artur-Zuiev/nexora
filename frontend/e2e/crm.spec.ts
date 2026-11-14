@@ -30,9 +30,6 @@ test('admin adds and searches a disposable CRM lead', async ({ page }) => {
   const unique = Date.now().toString(36);
   const leadName = `E2E Demo ${unique}`;
   const leadEmail = `e2e-${unique}@example.test`;
-  const form = page.locator('section').filter({
-    has: page.getByRole('heading', { name: 'Add a lead' })
-  }).getByRole('form');
   // Use the labelled controls; no real customer information is used.
   await page.getByRole('textbox', { name: 'Customer name' }).fill(leadName);
   await page.getByRole('textbox', { name: 'Email', exact: true }).fill(leadEmail);

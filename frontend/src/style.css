@@ -163,3 +163,22 @@ td{color:#55637a;line-height:1.45}
   .team-create-form,.password-form{grid-template-columns:1fr}
 }
 @media(prefers-reduced-motion:reduce){:root{scroll-behavior:auto}*,*::before,*::after{transition:none!important}}
+
+
+/* Follow-up workspace: scan daily priorities without losing task detail. */
+.task-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 20px}
+.task-priority{background:#f8faff;color:#273d68;border:1px solid #e2e8f4;padding:15px 18px;border-radius:13px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;box-shadow:none}
+.task-priority:hover{background:#edf2fe;color:#20385d;box-shadow:none}
+.task-priority.active{background:#e7edff;color:#243c87;border-color:#9eadef}
+.task-priority span{font-size:13px;font-weight:700}
+.task-priority strong{font-size:21px;font-variant-numeric:tabular-nums}
+.task-priority:first-child strong{color:#bd2e42}
+.task-priority:nth-child(2) strong{color:#315da5}
+.task-toolbar{grid-template-columns:minmax(130px,1fr) minmax(190px,2fr) auto}
+.task-count{margin:-7px 0 14px}
+.task-lead-link{padding:2px 0;background:transparent;color:#304f95;font-weight:650;border-radius:3px;text-align:left;box-shadow:none;text-decoration:underline;text-decoration-color:#b6c4e2;text-underline-offset:3px}
+.task-lead-link:hover{background:transparent;color:#203974;box-shadow:none;text-decoration-color:currentColor}
+.task-lead-link:focus-visible{outline:3px solid #a7baff;outline-offset:3px}
+#lead-detail{scroll-margin-top:25px}
+@media(max-width:850px){.task-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.task-toolbar .secondary-button{grid-column:1/-1}}
+@media(max-width:560px){.task-summary{gap:7px}.task-priority{padding:12px 9px;display:grid;gap:5px}.task-priority span{font-size:11px}.task-priority strong{font-size:22px}.task-toolbar{grid-template-columns:1fr}.task-toolbar .secondary-button{grid-column:auto}}

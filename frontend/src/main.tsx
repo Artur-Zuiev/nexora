@@ -1,98 +1,181 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 
 type Status = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'WON' | 'LOST';
 type Lead = { id: number; name: string; email: string; note: string | null; status: Status };
+type StatusFilter = Status | 'ALL';
 const API = 'http://localhost:8080/api/leads';
 const statuses: Status[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'WON', 'LOST'];
+const labels: Record<Status, string> = {
+  NEW: 'New', CONTACTED: 'Contacted', QUALIFIED: 'Qualified', WON: 'Won', LOST: 'Lost'
+};
 
 function App() {
-  const [credentials, setCredentials] = useState('');
+  const [auth, setAuth] = useState('');
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<StatusFilter>('ALL');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  function authorizedFetch(url: string, init: RequestInit = {}) {
-    return fetch(url, { ...init, headers: { ...init.headers, Authorization: `Basic ${credentials}` } });
+  const selected = leads.find(lead => lead.id === selectedId) ?? null;
+  const filtered = useMemo(() => leads.filter(lead => {
+    const q = search.trim().toLocaleLowerCase();
+    const matchesSearch = !q || [lead.name, lead.email, lead.note ?? '']
+      .some(value => value.toLocaleLowerCase().includes(q));
+    return matchesSearch && (filter === 'ALL' || lead.status === filter);
+  }), [leads, search, filter]);
+
+  function signOut() {
+    setAuth('');
+    setPassword('');
+    setLeads([]);
+    setSelectedId(null);
+    setNote('');
+    setError('');
+    setSuccess('');
+  }
+
+  async function api(url: string, init: RequestInit = {}) {
+    const response = await fetch(url, {
+      ...init,
+      headers: { 'Authorization': `Basic ${auth}`, ...init.headers }
+    });
+    if (response.status === 401) {
+      signOut();
+      setAuthError('Your session expired. Please sign in again.');
+      throw new Error('Unauthorized');
+    }
+    if (!response.ok) throw new Error(`Request failed (${response.status})`);
+    return response;
   }
 
   async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthError('');
-    const encoded = btoa(`${username}:${password}`);
+    let encoded: string;
+    try {
+      // Supports non-ASCII credentials; the password remains only in memory.
+      encoded = btoa(Array.from(new TextEncoder().encode(`${username}:${password}`),
+        byte => String.fromCharCode(byte)).join(''));
+    } catch {
+      setAuthError('Could not encode these credentials.');
+      return;
+    }
+    setLoading(true);
     try {
       const response = await fetch(API, { headers: { Authorization: `Basic ${encoded}` } });
       if (!response.ok) throw new Error('Invalid credentials');
       setLeads(await response.json() as Lead[]);
-      setCredentials(encoded);
+      setAuth(encoded);
       setPassword('');
       setError('');
-      setLoading(false);
     } catch {
-      setAuthError('Cannot sign in. Check your username, password and backend connection.');
-    }
-  }
-
-  function signOut() {
-    setCredentials('');
-    setLeads([]);
-    setPassword('');
-    setError('');
-  }
-
-
-  async function load() {
-    try {
-      const response = await authorizedFetch(API);
-      if (!response.ok) throw new Error('Cannot load leads');
-      setLeads(await response.json() as Lead[]);
-      setError('');
-    } catch {
-      setError('Cannot connect to backend. Start PostgreSQL and Spring Boot.');
+      setAuthError('Sign in failed. Check your credentials and backend connection.');
     } finally {
       setLoading(false);
     }
   }
-  useEffect(() => { if (credentials) void load(); }, [credentials]);
+
+  async function load() {
+    try {
+      const response = await api(API);
+      setLeads(await response.json() as Lead[]);
+      setError('');
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unauthorized') {
+        setError('Cannot load leads. Check the backend connection.');
+      }
+    }
+  }
+
+  useEffect(() => { if (auth) void load(); }, [auth]);
 
   async function add(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setSaving(true);
+    setError('');
+    setSuccess('');
     try {
-      const response = await fetch(API, {
+      const response = await api(API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, status: 'NEW', note: '' })
+        body: JSON.stringify({ name: name.trim(), email: email.trim() })
       });
-      if (!response.ok) throw new Error('Cannot add lead');
+      const created = await response.json() as Lead;
       setName('');
       setEmail('');
       await load();
-    } catch {
-      setError('Could not create lead.');
+      setSelectedId(created.id);
+      setNote(created.note ?? '');
+      setSuccess('Lead added successfully.');
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unauthorized') {
+        setError('Could not create lead. Check the supplied details.');
+      }
+    } finally {
+      setSaving(false);
     }
   }
 
   async function changeStatus(id: number, status: Status) {
+    setError('');
+    setSuccess('');
+    setSaving(true);
     try {
-      const response = await authorizedFetch(`${API}/${id}/status`, {
+      await api(`${API}/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
       });
-      if (!response.ok) throw new Error('Cannot update lead');
       await load();
-    } catch {
-      setError('Could not update status.');
+      setSuccess('Status updated.');
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not update status.');
+    } finally {
+      setSaving(false);
     }
   }
 
-  if (!credentials) return (
+  async function saveNote(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected) return;
+    setError('');
+    setSuccess('');
+    setSaving(true);
+    try {
+      await api(`${API}/${selected.id}/note`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note })
+      });
+      await load();
+      setSuccess('Note saved.');
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not save note.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openLead(lead: Lead) {
+    setSelectedId(lead.id);
+    setNote(lead.note ?? '');
+    setError('');
+    setSuccess('');
+  }
+
+  if (!auth) return (
     <main className="login-page">
       <section className="login-card">
         <div className="brand login-brand">◆ Nexora <small>Business platform</small></div>
@@ -101,7 +184,7 @@ function App() {
         <form onSubmit={signIn}>
           <label><span>Username</span><input required value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" /></label>
           <label><span>Password</span><input required type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" /></label>
-          <button type="submit">Sign in</button>
+          <button disabled={loading} type="submit">{loading ? 'Signing in…' : 'Sign in'}</button>
         </form>
         {authError && <p role="alert" className="error">{authError}</p>}
         <small>Local development only · Do not use real customer data</small>
@@ -115,18 +198,18 @@ function App() {
         <div className="brand">◆ Nexora <small>Business platform</small></div>
         <nav aria-label="Main navigation">
           <span className="active">Overview</span>
-          <span>Leads</span>
+          <span className="active-section">Lead workspace</span>
           <span className="planned">Analytics · planned</span>
           <span className="planned">Automations · planned</span>
         </nav>
-        <small className="sidebar-foot">Local development · MVP 0.1</small>
+        <small className="sidebar-foot">Local development · CRM MVP</small>
       </aside>
       <main>
         <header>
           <div>
-            <span className="eyebrow">WORKSPACE / OVERVIEW</span>
+            <span className="eyebrow">WORKSPACE / CRM</span>
             <h1>Business overview</h1>
-            <p>Track opportunities and manage your customer pipeline.</p>
+            <p>Organize opportunities, follow up and manage your pipeline.</p>
           </div>
           <button type="button" className="sign-out" onClick={signOut}>Sign out</button>
         </header>
@@ -138,26 +221,49 @@ function App() {
         <section className="panel">
           <h2>Add a lead</h2>
           <form onSubmit={add}>
-            <label><span>Customer name</span><input required value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" /></label>
-            <label><span>Email</span><input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" /></label>
-            <button type="submit">Add lead</button>
+            <label><span>Customer name</span><input required maxLength={120} value={name} onChange={e => setName(e.target.value)} placeholder="Jane Smith" /></label>
+            <label><span>Email</span><input required type="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder="jane@example.com" /></label>
+            <button disabled={saving} type="submit">Add lead</button>
           </form>
         </section>
         <section className="panel">
-          <div className="panel-header"><h2>Lead pipeline</h2><span>{leads.length} records</span></div>
+          <div className="panel-header"><h2>Lead pipeline</h2><span>{filtered.length} of {leads.length} records</span></div>
+          <div className="toolbar">
+            <label><span>Search leads</span><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Name, email or notes" /></label>
+            <label><span>Filter by status</span><select value={filter} onChange={e => setFilter(e.target.value as StatusFilter)}>
+              <option value="ALL">All statuses</option>
+              {statuses.map(status => <option key={status} value={status}>{labels[status]}</option>)}
+            </select></label>
+            <button className="secondary-button" type="button" onClick={() => { setSearch(''); setFilter('ALL'); }}>Clear filters</button>
+          </div>
           {error && <p role="alert" className="error">{error}</p>}
-          {loading ? <p className="empty">Loading...</p> : leads.length === 0 ? <p className="empty">No leads yet. Add your first customer above.</p> :
+          {success && <p role="status" className="success">{success}</p>}
+          {leads.length === 0 ? <p className="empty">No leads yet. Add your first customer above.</p> :
+            filtered.length === 0 ? <p className="empty">No matching leads. Try changing your filters.</p> :
             <div className="table-wrap"><table>
-              <thead><tr><th>Customer</th><th>Email</th><th>Status</th></tr></thead>
-              <tbody>{leads.map(lead => <tr key={lead.id}>
-                <td><strong>{lead.name}</strong></td>
-                <td>{lead.email}</td>
-                <td><select aria-label={`Status for ${lead.name}`} value={lead.status} onChange={e => void changeStatus(lead.id, e.target.value as Status)}>
-                  {statuses.map(status => <option key={status} value={status}>{status}</option>)}
+              <thead><tr><th>Customer</th><th>Email</th><th>Status</th><th>Details</th></tr></thead>
+              <tbody>{filtered.map(lead => <tr key={lead.id}>
+                <td><strong>{lead.name}</strong></td><td>{lead.email}</td>
+                <td><select disabled={saving} aria-label={`Status for ${lead.name}`} value={lead.status} onChange={e => void changeStatus(lead.id, e.target.value as Status)}>
+                  {statuses.map(status => <option key={status} value={status}>{labels[status]}</option>)}
                 </select></td>
+                <td><button type="button" className="secondary-button details-button" onClick={() => openLead(lead)}>View</button></td>
               </tr>)}</tbody>
             </table></div>}
         </section>
+        {selected && <section className="panel lead-detail" aria-label="Lead details">
+          <div className="panel-header">
+            <div><span className="eyebrow">LEAD DETAILS</span><h2>{selected.name}</h2></div>
+            <button type="button" className="secondary-button" onClick={() => setSelectedId(null)}>Close</button>
+          </div>
+          <p><strong>Email:</strong> <a href={`mailto:${selected.email}`}>{selected.email}</a></p>
+          <p><strong>Status:</strong> {labels[selected.status]}</p>
+          <form onSubmit={saveNote} className="note-form">
+            <label htmlFor="lead-note"><span>Customer notes</span></label>
+            <textarea id="lead-note" rows={5} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} placeholder="Follow-up details, customer needs, next steps…" />
+            <div className="note-actions"><small>{note.length} / 2000</small><button disabled={saving || note === (selected.note ?? '')} type="submit">Save note</button></div>
+          </form>
+        </section>}
       </main>
     </div>
   );

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.*;
 @Table(name="leads")
 public class Lead {
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) public Long id;
+ @Column(name="tenant_id", length=64) public String tenantId;
  @NotBlank public String name;
  @Email @NotBlank public String email;
  @Column(length=2000) public String note;

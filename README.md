@@ -62,9 +62,10 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Single-admin HTTP Basic for local development (not production auth)
 - [ ] Production authentication, password rotation, session security and granular roles
 - [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
-- [ ] Real multi-organization principal resolution, enforced schema constraints and production isolation (required before user accounts)
+- [x] Database-level organization references and tenant-safe lead foreign keys
+- [ ] Real multi-organization principal resolution and production isolation (required before user accounts)
 - [x] Tenant threat model and migration plan (`docs/tenant-isolation-design.md`)
-- [x] Flyway V1/V2 baseline migrations for local CRM database
+- [x] Flyway V1–V3 migrations, with organization constraints and tenant-safe foreign keys
 - [ ] Production-grade, reviewed migration and backup/restore process
 - [ ] Unit/integration tests, Testcontainers and frontend tests
 - [x] GitHub Actions build/test checks
@@ -125,3 +126,9 @@ Repository-level unit tests verify that lead, task and activity operations rejec
 The backend now uses Flyway instead of Hibernate schema mutation. On an empty database, Flyway runs `V1__initial_crm_schema.sql` and `V2__tenant_scoping.sql`, after which Hibernate validates the resulting schema. Existing local Hibernate-generated demo databases without Flyway history are automatically baselined at V1 and then receive V2, including the `local-admin` tenant backfill. The previous startup-time backfill component has been removed. The integration test checks Flyway history and tenant columns against PostgreSQL in GitHub Actions.
 
 **Important:** automatic baselining assumes the existing database already has `leads`, `lead_tasks`, and `lead_activities` tables matching the earlier local prototype. There are no production guarantees. Take a PostgreSQL backup, rehearse restoration, and review the schema before upgrading existing data; never enable automatic baseline against an unknown database. For production, implement an explicit reviewed migration path, foreign keys, organization membership, and backup/restore tests. Application login is still single-admin only.
+
+## Database-level organization integrity (V3)
+
+Flyway V3 creates the `organizations` table with a single local demo organization and adds foreign keys from leads, tasks and activity records. Tasks and activity records additionally reference the composite key `(tenant_id, lead_id)` on their parent lead: a child row cannot reference another organization's lead even if a faulty future API tries to insert one. The PostgreSQL integration test checks this invariant. This is useful defense in depth but **does not constitute user authentication, account membership or safe multi-user deployment**.
+
+**Existing local data:** V3 refuses to run if there are orphaned tasks or activity records, unknown tenant identifiers or other inconsistent demo data. Back up the database first and inspect/correct it manually rather than silently deleting records. Neither this migration nor the repository tests have been validated against any individual user's existing PostgreSQL volume.

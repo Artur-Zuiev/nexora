@@ -2,6 +2,7 @@ package com.nexora.os.lead;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +40,16 @@ public class LeadController {
         lead.status = update.status();
         return repository.save(lead);
     }
+
+    @PatchMapping("/{id}/note")
+    public Lead updateNote(@PathVariable Long id, @Valid @RequestBody NoteUpdate update) {
+        Lead lead = repository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lead not found"));
+        lead.note = update.note();
+        return repository.save(lead);
+    }
+
+    public record NoteUpdate(@NotNull @Size(max = 2000) String note) {}
 
     public record StatusUpdate(@NotNull Lead.Status status) {}
 }

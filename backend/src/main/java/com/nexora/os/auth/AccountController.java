@@ -18,10 +18,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class AccountController {
     private final AppUserRepository users;
     private final PasswordEncoder passwords;
+    private final SecurityAudit audit;
 
-    public AccountController(AppUserRepository users, PasswordEncoder passwords) {
+    public AccountController(AppUserRepository users, PasswordEncoder passwords, SecurityAudit audit) {
         this.users = users;
         this.passwords = passwords;
+        this.audit = audit;
     }
 
     @GetMapping("/api/me")
@@ -50,6 +52,8 @@ public class AccountController {
         }
         user.passwordHash = passwords.encode(request.newPassword());
         users.saveAndFlush(user);
+        audit.record(principal.tenantId(), principal.getUsername(),
+                SecurityAudit.Event.SELF_PASSWORD_CHANGED, principal.getUsername());
     }
 
     public record ChangePassword(

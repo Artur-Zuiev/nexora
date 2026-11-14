@@ -75,7 +75,7 @@ class MultiOrganizationAuthorizationTest {
         mvc.perform(post("/api/tasks")
                 .header(HttpHeaders.AUTHORIZATION, basic(user, password))
                 .contentType("application/json")
-                .content("{\\"leadId\\":" + foreignLead + ",\\"title\\":\\"Follow up\\",\\"dueDate\\":\\"2027-02-01\\"}"))
+                .content("{\"leadId\":" + foreignLead + ",\"title\":\"Follow up\",\"dueDate\":\"2027-02-01\"}"))
                 .andExpect(status().isForbidden());
 
         // The team roster is only visible to admins of their own organization.

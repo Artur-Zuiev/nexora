@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -26,10 +27,13 @@ import org.springframework.web.server.ResponseStatusException;
 public class SessionController {
     private final AuthenticationManager manager;
     private final SecurityContextRepository contexts;
+    private final SessionLoginLimiter limiter;
 
-    public SessionController(AuthenticationManager manager, SecurityContextRepository contexts) {
+    public SessionController(AuthenticationManager manager, SecurityContextRepository contexts,
+                             SessionLoginLimiter limiter) {
         this.manager = manager;
         this.contexts = contexts;
+        this.limiter = limiter;
     }
 
     @GetMapping("/csrf")
@@ -44,8 +48,17 @@ public class SessionController {
     @PostMapping("/login")
     public Account login(@Valid @RequestBody LoginRequest request,
                          HttpServletRequest servletRequest, HttpServletResponse servletResponse) {
-        Authentication authentication = manager.authenticate(
-                UsernamePasswordAuthenticationToken.unauthenticated(request.username(), request.password()));
+        String address = servletRequest.getRemoteAddr();
+        limiter.check(request.username(), address);
+        Authentication authentication;
+        try {
+            authentication = manager.authenticate(
+                    UsernamePasswordAuthenticationToken.unauthenticated(request.username(), request.password()));
+        } catch (AuthenticationException ex) {
+            limiter.failure(request.username(), address);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
+        limiter.success(request.username(), address);
         if (!(authentication.getPrincipal() instanceof NexoraPrincipal principal)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }

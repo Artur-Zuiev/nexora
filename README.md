@@ -73,7 +73,8 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Authenticated password change with existing password verification and PostgreSQL integration tests
 - [x] Local-only admin-assisted MEMBER recovery with administrator reauthentication
 - [x] Initial in-memory local HTTP Basic login throttling with Retry-After responses
-- [ ] Invitation delivery, self-service forgotten-password reset, sessions and full granular role permissions
+- [x] First-phase cookie-session API, CSRF enforcement, session invalidation on password/role/enable changes
+- [ ] Frontend migration off HTTP Basic, production session storage and full granular roles
 - [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
 - [x] Database-level organization references and tenant-safe lead foreign keys
 - [ ] Real multi-organization principal resolution and production isolation (required before user accounts)
@@ -195,3 +196,14 @@ This is an application activity record, **not** a tamper-proof compliance audit,
 A Spring Security filter blocks **a username + observed remote IP address** after 5 Basic-authentication failures during a 15-minute window. Blocked API calls return HTTP **429** with `Retry-After`; the sign-in form explains the temporary wait. A successful authenticated request clears that username/IP counter. Requests without Basic credentials do not count toward a user's failed-password attempts. The filter stores neither passwords nor Authorization headers and never trusts `X-Forwarded-For`. Unit tests cover the threshold, reset, scope, and expiry.
 
 **Limitations:** This is a single-process **local development** defense only. Counters disappear on application restart and can be evaded using alternate usernames or addresses. Username/IP keyed throttling can also temporarily affect legitimate access if someone guesses a username. There is no shared/distributed limiter, durable lockout state, protected reverse proxy, MFA, or failed-attempt alerting. This is **not production-ready brute-force prevention**; do not open the prototype to external networks. No hosting, paid tools or subscriptions were added.
+
+## Browser sessions — first phase, local-only
+
+The backend now provides an experimental cookie-backed session flow alongside the **existing HTTP Basic frontend**. This is deliberately incremental: the current React app still signs in using Basic until the session-based frontend migration and its own tests are complete. Session users have the same organization/role controls.
+
+1. Call `GET /api/session/csrf` and retain the returned `headerName` and `token`, along with the server's HttpOnly session cookie.
+2. Send `POST /api/session/login` with `{"username":"...","password":"..."}`, the CSRF header and the session cookie. A successful login rotates the session ID.
+3. Send the cookie on later API requests. For every non-safe HTTP method, include a valid CSRF header; without it, the server returns 403.
+4. Send `POST /api/session/logout` with the CSRF header to invalidate the session.
+
+The server checks session-backed identities against the stored account on each request: disabling an account, changing its password or role, or changing its organization invalidates its old session. JSON login has a separate in-memory 5-attempt/15-minute limiter. The server session is local-process memory and is lost on restart. The cookie is HttpOnly and SameSite=Lax, and local development has **no HTTPS**; never expose this implementation publicly. HTTP Basic stays temporarily enabled for old local development clients and tests, with their existing CSRF exemption, until the frontend is fully migrated. This stage is **not** a production-grade authentication system, and no payment or hosting is involved.

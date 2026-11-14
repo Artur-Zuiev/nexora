@@ -43,6 +43,7 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | GET | `/api/me` | Current username, organization ID and role |
+| POST | `/api/me/password` | Authenticated self-service password change (old password required) |
 | GET | `/api/team` | Admin-only team directory for the current organization |
 | POST | `/api/team` | Admin-only creation of a MEMBER in the current organization |
 | PATCH | `/api/team/{id}/enabled` | Admin-only enable or disable member account |
@@ -67,7 +68,8 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Database-backed users with hashed passwords and organization-aware principals (local-only)
 - [x] First role permissions: MEMBER read-only CRM, ADMIN writes and views team roster
 - [x] Admin-only local MEMBER creation and enable/disable controls
-- [ ] Invitation delivery, secure account provisioning, password reset, sessions and full granular role permissions
+- [x] Authenticated password change with existing password verification
+- [ ] Invitation delivery, forgotten-password reset, sessions and full granular role permissions
 - [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
 - [x] Database-level organization references and tenant-safe lead foreign keys
 - [ ] Real multi-organization principal resolution and production isolation (required before user accounts)
@@ -161,3 +163,9 @@ Role checks run in Spring Security on the server. This milestone **does not** im
 The admin dashboard now has a **Team members** section where an ADMIN can create a MEMBER account by entering a unique username and a password of 12–128 characters. The password is bcrypt-hashed through Spring Security before being stored in PostgreSQL. The API never returns passwords or password hashes. Username is unique across the whole local database, not only within an organization. Members have read-only CRM access. An ADMIN can disable/re-enable MEMBER accounts, with tenant-scoped server queries; disabling the current administrator or another ADMIN is rejected. Disabled users cannot log in on subsequent requests.
 
 **Important limitations:** This is a **local developer-controlled mechanism**, not email invitation delivery and not production user management. The admin must communicate an initial password through an appropriate secure channel; there is no invitation email or self-service password reset. HTTP Basic remains local-only, password rotation/first-login reset are not yet implemented, and no real customer data should be entered. Do not forward passwords in unencrypted messages or enable public access. No paid services or hosting were added.
+
+## Self-service password change (local only)
+
+Any authenticated ADMIN or MEMBER can change their own password from **Account security** by supplying the current password and a different 12–128 character replacement. The backend verifies the existing encoded password and stores a newly hashed replacement. The browser clears its in-memory HTTP Basic credentials and signs out after success. Previous credentials stop authenticating subsequent requests; HTTP Basic does **not** revoke already-running requests or provide secure sessions. Passwords are not stored in the frontend or returned by the API.
+
+This feature is not a forgotten-password recovery mechanism. No email sending, paid provider, password-reset token, TLS, production session management or public registration is implemented. Do not use the prototype with real account credentials or expose it beyond localhost.

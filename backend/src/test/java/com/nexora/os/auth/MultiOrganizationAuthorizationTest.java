@@ -7,18 +7,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import com.nexora.os.config.SessionTestSupport;
 
 /** Real PostgreSQL + Spring Security tests; all inserted test data rolls back. */
 @SpringBootTest(properties = "NEXORA_ADMIN_PASSWORD=integration-test-secret-123")
@@ -52,13 +50,13 @@ class MultiOrganizationAuthorizationTest {
                 Long.class, "Local admin lead", "admin@example.test");
 
         JsonNode adminView = json.readTree(mvc.perform(get("/api/leads")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", "integration-test-secret-123")))
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123")))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertTrue(containsId(adminView, localLead));
         assertFalse(containsId(adminView, foreignLead));
 
         JsonNode memberInfo = json.readTree(mvc.perform(get("/api/me")
-                .header(HttpHeaders.AUTHORIZATION, basic(user, password)))
+                .with(SessionTestSupport.asUser(mvc, user, password)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertEquals(user, memberInfo.path("username").asText());
         assertEquals(org, memberInfo.path("organizationId").asText());
@@ -66,25 +64,25 @@ class MultiOrganizationAuthorizationTest {
         assertFalse(memberInfo.has("passwordHash"));
 
         JsonNode memberView = json.readTree(mvc.perform(get("/api/leads")
-                .header(HttpHeaders.AUTHORIZATION, basic(user, password)))
+                .with(SessionTestSupport.asUser(mvc, user, password)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertTrue(containsId(memberView, foreignLead));
         assertFalse(containsId(memberView, localLead));
 
         // Members may read their own organization's data, but not modify CRM records.
         mvc.perform(post("/api/tasks")
-                .header(HttpHeaders.AUTHORIZATION, basic(user, password))
+                .with(SessionTestSupport.asUser(mvc, user, password))
                 .contentType("application/json")
                 .content("{\"leadId\":" + foreignLead + ",\"title\":\"Follow up\",\"dueDate\":\"2027-02-01\"}"))
                 .andExpect(status().isForbidden());
 
         // The team roster is only visible to admins of their own organization.
         mvc.perform(get("/api/team")
-                .header(HttpHeaders.AUTHORIZATION, basic(user, password)))
+                .with(SessionTestSupport.asUser(mvc, user, password)))
                 .andExpect(status().isForbidden());
 
         JsonNode localTeam = json.readTree(mvc.perform(get("/api/team")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", "integration-test-secret-123")))
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123")))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertTrue(localTeam.isArray());
         assertTrue(localTeam.size() >= 1);
@@ -94,11 +92,11 @@ class MultiOrganizationAuthorizationTest {
         }
 
         mvc.perform(get("/api/leads/" + foreignLead + "/activities")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", "integration-test-secret-123")))
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123")))
                 .andExpect(status().isNotFound());
 
         mvc.perform(post("/api/tasks")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", "integration-test-secret-123"))
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123"))
                 .contentType("application/json")
                 .content("{\"leadId\":" + foreignLead + ",\"title\":\"Cross-tenant task\",\"dueDate\":\"2027-02-01\"}"))
                 .andExpect(status().isNotFound());
@@ -111,8 +109,4 @@ class MultiOrganizationAuthorizationTest {
         return false;
     }
 
-    private static String basic(String user, String password) {
-        return "Basic " + Base64.getEncoder().encodeToString(
-                (user + ":" + password).getBytes(StandardCharsets.UTF_8));
-    }
 }

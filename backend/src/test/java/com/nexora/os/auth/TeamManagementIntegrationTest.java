@@ -6,24 +6,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import com.nexora.os.config.SessionTestSupport;
 
 @SpringBootTest(properties = "NEXORA_ADMIN_PASSWORD=integration-test-secret-123")
 @AutoConfigureMockMvc
 @Transactional
 class TeamManagementIntegrationTest {
-    private static final String ADMIN_AUTH = basic("admin", "integration-test-secret-123");
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired ObjectMapper json;
@@ -35,7 +32,7 @@ class TeamManagementIntegrationTest {
         String password = "dev-member-password-123";
         String request = json.writeValueAsString(new TeamController.CreateMember(username, password));
         var created = mvc.perform(post("/api/team")
-                .header(HttpHeaders.AUTHORIZATION, ADMIN_AUTH)
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123"))
                 .contentType("application/json").content(request))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse();
@@ -49,17 +46,16 @@ class TeamManagementIntegrationTest {
         assertNotEquals(password, storedHash);
         assertTrue(encoder.matches(password, storedHash));
 
-        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, basic(username, password)))
+        mvc.perform(get("/api/me").with(SessionTestSupport.asUser(mvc, username, password)))
                 .andExpect(status().isOk());
 
         mvc.perform(patch("/api/team/" + id + "/enabled")
-                .header(HttpHeaders.AUTHORIZATION, ADMIN_AUTH)
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123"))
                 .contentType("application/json").content("{\"enabled\":false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(false));
 
-        mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, basic(username, password)))
-                .andExpect(status().isUnauthorized());
+        SessionTestSupport.expectLoginFailure(mvc, username, password);
     }
 
     @Test
@@ -72,17 +68,17 @@ class TeamManagementIntegrationTest {
         Long id = jdbc.queryForObject("SELECT id FROM app_users WHERE username=?", Long.class, username);
 
         mvc.perform(post("/api/team")
-                .header(HttpHeaders.AUTHORIZATION, basic(username, "member-password-123"))
+                .with(SessionTestSupport.asUser(mvc, username, "member-password-123"))
                 .contentType("application/json").content("{\"username\":\"blocked\",\"password\":\"long-enough-pass\"}"))
                 .andExpect(status().isForbidden());
 
         mvc.perform(patch("/api/team/" + id + "/enabled")
-                .header(HttpHeaders.AUTHORIZATION, ADMIN_AUTH)
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123"))
                 .contentType("application/json").content("{\"enabled\":false}"))
                 .andExpect(status().isNotFound());
 
         mvc.perform(patch("/api/team/" + id + "/enabled")
-                .header(HttpHeaders.AUTHORIZATION, basic(username, "member-password-123"))
+                .with(SessionTestSupport.asUser(mvc, username, "member-password-123"))
                 .contentType("application/json").content("{\"enabled\":false}"))
                 .andExpect(status().isForbidden());
     }
@@ -90,22 +86,19 @@ class TeamManagementIntegrationTest {
     @Test
     void invalidInputAndOwnAdminDisablingAreRejected() throws Exception {
         mvc.perform(post("/api/team")
-                .header(HttpHeaders.AUTHORIZATION, ADMIN_AUTH)
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123"))
                 .contentType("application/json").content("{\"username\":\"A\",\"password\":\"short\"}"))
                 .andExpect(status().isBadRequest());
         Long adminId = jdbc.queryForObject("SELECT id FROM app_users WHERE username='admin'", Long.class);
         mvc.perform(patch("/api/team/" + adminId + "/enabled")
-                .header(HttpHeaders.AUTHORIZATION, ADMIN_AUTH)
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123"))
                 .contentType("application/json").content("{\"enabled\":false}"))
                 .andExpect(status().isConflict());
         mvc.perform(patch("/api/team/" + adminId + "/enabled")
-                .header(HttpHeaders.AUTHORIZATION, ADMIN_AUTH)
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123"))
                 .contentType("application/json").content("{}"))
                 .andExpect(status().isBadRequest());
     }
 
-    private static String basic(String user, String password) {
-        return "Basic " + Base64.getEncoder().encodeToString(
-                (user + ":" + password).getBytes(StandardCharsets.UTF_8));
-    }
+
 }

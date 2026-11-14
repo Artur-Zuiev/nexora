@@ -219,3 +219,9 @@ The Vite dev server proxies `/api` requests to the locally bound Spring Boot ser
 The standard application configuration now rejects HTTP Basic authentication. The old Basic filter and its CSRF bypass are attached **only** when the explicit `nexora.security.legacy-basic-enabled=true` setting is used. Do not enable it for normal application use. Older integration tests temporarily opt into compatibility mode through `backend/src/test/resources/application.properties`. A separate production-mode test overrides the setting to `false` and checks that Basic headers cannot authenticate or bypass CSRF. The normal React frontend already uses cookie sessions.
 
 **Remaining:** Migrate older integration tests to session login and delete the temporary compatibility mode entirely. Session cookies are local-only, with no TLS or shared session store. No paid services, deployment, or real customer data involved.
+
+## Session-only authentication and tests
+
+All backend integration tests for authorization, team administration, password rotation, audit, and account recovery now use actual `/api/session/login` with CSRF-protected cookie sessions. The temporary `nexora.security.legacy-basic-enabled` toggle, Basic authentication filter, and Basic-only throttle have been **removed**. Standard Spring Security CSRF protection applies to all unsafe methods, including requests with an injected Basic header. Login failures for the JSON session endpoint continue to use the bounded local `SessionLoginLimiter`.
+
+The test helper `SessionTestSupport` exercises real authentication rather than bypassing security with mocked roles. This remains a localhost-only prototype without HTTPS, MFA, shared session storage, or publicly safe account recovery. No paid service was added.

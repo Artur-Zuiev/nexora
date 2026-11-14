@@ -6,18 +6,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import com.nexora.os.config.SessionTestSupport;
 
 @SpringBootTest(properties = "NEXORA_ADMIN_PASSWORD=integration-test-secret-123")
 @AutoConfigureMockMvc
@@ -29,10 +27,7 @@ class SecurityAuditIntegrationTest {
     @Autowired PasswordEncoder encoder;
     @Autowired SecurityAudit audit;
 
-    private static String basic(String u, String p) {
-        return "Basic " + Base64.getEncoder().encodeToString(
-            (u + ":" + p).getBytes(StandardCharsets.UTF_8));
-    }
+
 
     @Test
     void adminSeesOnlyOwnEventsAndNoSecretsAreReturned() throws Exception {
@@ -42,7 +37,7 @@ class SecurityAuditIntegrationTest {
         audit.record("local-admin", "admin", SecurityAudit.Event.MEMBER_CREATED, marker);
         audit.record(foreignTenant, "foreign-admin", SecurityAudit.Event.MEMBER_PASSWORD_RESET, "secret-other-account");
         JsonNode events = mapper.readTree(mvc.perform(get("/api/security/events")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", "integration-test-secret-123")))
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123")))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString());
         assertTrue(events.isArray());
@@ -62,13 +57,13 @@ class SecurityAuditIntegrationTest {
         jdbc.update("INSERT INTO app_users (tenant_id,username,password_hash,role) " +
             "VALUES ('local-admin',?,?,'MEMBER')", user, encoder.encode(previous));
         mvc.perform(get("/api/security/events")
-                .header(HttpHeaders.AUTHORIZATION, basic(user, previous)))
+                .with(SessionTestSupport.asUser(mvc, user, previous)))
                 .andExpect(status().isForbidden());
 
         String payload = mapper.writeValueAsString(
             java.util.Map.of("currentPassword", previous, "newPassword", updated));
         mvc.perform(post("/api/me/password")
-                .header(HttpHeaders.AUTHORIZATION, basic(user, previous))
+                .with(SessionTestSupport.asUser(mvc, user, previous))
                 .contentType("application/json").content(payload))
                 .andExpect(status().isOk());
         Integer count = jdbc.queryForObject(
@@ -85,7 +80,7 @@ class SecurityAuditIntegrationTest {
         String payload = mapper.writeValueAsString(java.util.Map.of(
             "username", username, "password", password));
         mvc.perform(post("/api/team")
-                .header(HttpHeaders.AUTHORIZATION, basic("admin", "integration-test-secret-123"))
+                .with(SessionTestSupport.asUser(mvc, "admin", "integration-test-secret-123"))
                 .contentType("application/json").content(payload))
                 .andExpect(status().isCreated());
         String eventName = jdbc.queryForObject(

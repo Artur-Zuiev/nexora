@@ -19,13 +19,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
- * Runs with production security configuration, overriding the test-only
- * legacy Basic flag. Verifies the old CSRF bypass is truly gone.
+ * Uses the single session-only security configuration.
+ * Verifies that HTTP Basic cannot authenticate or bypass CSRF.
  */
-@SpringBootTest(properties = {
-        "NEXORA_ADMIN_PASSWORD=integration-test-secret-123",
-        "nexora.security.legacy-basic-enabled=false"
-})
+@SpringBootTest(properties = "NEXORA_ADMIN_PASSWORD=integration-test-secret-123")
 @AutoConfigureMockMvc
 class ProductionSessionSecurityIntegrationTest {
     @Autowired MockMvc mvc;

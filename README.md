@@ -2,7 +2,7 @@
 
 A full-stack **customer lead management MVP** using **Java 21, Spring Boot 3, PostgreSQL, React 19, TypeScript and Vite**.
 
-> **Development prototype only.** A single local admin is protected with HTTP Basic, but account isolation, audit logs, TLS termination and deployment hardening are not implemented. **Never deploy this version publicly or store real customer data.**
+> **Development prototype only.** The local prototype uses HTTP Basic with database-backed credentials and tenant-scoped reads; public registration, production session management, access control review, TLS termination and deployment hardening are not implemented. **Never deploy this version publicly or store real customer data.**
 
 ## Implemented
 
@@ -42,7 +42,8 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| GET | `/api/leads` | List all leads |
+| GET | `/api/me` | Current username, organization ID and role |
+| GET | `/api/leads` | List leads scoped to the current user |
 | POST | `/api/leads` | Create lead |
 | PATCH | `/api/leads/{id}/status` | Update status |
 | PATCH | `/api/leads/{id}/note` | Update note |
@@ -60,12 +61,13 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 
 - [x] Create-lead request DTO, field limits, status validation and structured validation errors
 - [x] Single-admin HTTP Basic for local development (not production auth)
-- [ ] Production authentication, password rotation, session security and granular roles
+- [x] Database-backed users with hashed passwords and organization-aware principals (local-only)
+- [ ] Secure account provisioning, password reset, session security and granular role permissions
 - [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
 - [x] Database-level organization references and tenant-safe lead foreign keys
 - [ ] Real multi-organization principal resolution and production isolation (required before user accounts)
 - [x] Tenant threat model and migration plan (`docs/tenant-isolation-design.md`)
-- [x] Flyway V1–V3 migrations, with organization constraints and tenant-safe foreign keys
+- [x] Flyway V1–V4 migrations, with organization constraints and database user storage
 - [ ] Production-grade, reviewed migration and backup/restore process
 - [ ] Unit/integration tests, Testcontainers and frontend tests
 - [x] GitHub Actions build/test checks
@@ -85,7 +87,7 @@ Version 0.1 is a portfolio starter. GitHub Actions compile and test the backend 
 - **Local development only.** HTTP Basic credentials are transmitted on every API request; use TLS before any remote use. Do not put this prototype on a public network.
 - The server intentionally refuses to start without `NEXORA_ADMIN_PASSWORD` (12+ characters). No default admin password is shipped.
 - The frontend keeps the encoded Basic auth header only in React state, not persistent browser storage. Base64 is **not encryption**.
-- The app has one shared local admin account, no self-registration or tenant isolation; do not use real customer data.
+- The app bootstraps one local admin account into PostgreSQL. Although the database can store additional users, there is **no public registration or team management UI**; do not use real customer data.
 - The database port is bound to the loopback interface for local development and uses a demo credential: replace all credentials and harden infrastructure before deployment.
 - `POST /api/leads` accepts only `name` (1–120 chars), `email` (valid, max 254 chars), and optional `note` (max 2000 chars). New leads always begin in status `NEW`.
 
@@ -132,3 +134,11 @@ The backend now uses Flyway instead of Hibernate schema mutation. On an empty da
 Flyway V3 creates the `organizations` table with a single local demo organization and adds foreign keys from leads, tasks and activity records. Tasks and activity records additionally reference the composite key `(tenant_id, lead_id)` on their parent lead: a child row cannot reference another organization's lead even if a faulty future API tries to insert one. The PostgreSQL integration test checks this invariant. This is useful defense in depth but **does not constitute user authentication, account membership or safe multi-user deployment**.
 
 **Existing local data:** V3 refuses to run if there are orphaned tasks or activity records, unknown tenant identifiers or other inconsistent demo data. Back up the database first and inspect/correct it manually rather than silently deleting records. Neither this migration nor the repository tests have been validated against any individual user's existing PostgreSQL volume.
+
+## Database-backed accounts (local-only)
+
+Flyway V4 creates `app_users` containing username, hashed password, enabled flag, role and organization ID. Spring Security now authenticates against these records. On the **first startup** the existing `NEXORA_ADMIN_PASSWORD` environment variable seeds the `admin` account in the `local-admin` organization using Spring Security's delegating password encoder (bcrypt hash). The existing admin password is **not automatically changed** on subsequent restarts; changing the environment variable alone does not rotate the stored password. Do not lose the original local password. This is still a development-only bootstrap and not a password recovery mechanism.
+
+The authenticated server-side identity provides organization scope to all CRM controllers. The new authenticated `GET /api/me` returns only username, organization ID and role. A PostgreSQL-backed integration test uses two organizations and accounts to verify separate lead listings and reject cross-organization activity access and task creation.
+
+**Not implemented:** self-registration, user invitations, admin team management, fine-grained authorization of ADMIN vs MEMBER actions, password resets, secure sessions, TLS or an approval for public deployment. HTTP Basic remains local only; never expose it on the internet or enter real customer records. Back up any existing local database before the V4 upgrade.

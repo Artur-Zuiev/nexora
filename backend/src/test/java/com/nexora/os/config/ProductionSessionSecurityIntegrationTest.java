@@ -37,7 +37,7 @@ class ProductionSessionSecurityIntegrationTest {
                 "admin:integration-test-secret-123".getBytes(StandardCharsets.UTF_8));
 
         mvc.perform(get("/api/me").header(HttpHeaders.AUTHORIZATION, basic))
-                .andExpect(status().isForbidden()); // No Basic handler: anonymous requests are denied.
+                .andExpect(status().isUnauthorized()); // Missing session gets a consistent 401.
 
         mvc.perform(post("/api/team")
                 .header(HttpHeaders.AUTHORIZATION, basic)

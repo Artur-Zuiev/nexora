@@ -225,3 +225,18 @@ The standard application configuration now rejects HTTP Basic authentication. Th
 All backend integration tests for authorization, team administration, password rotation, audit, and account recovery now use actual `/api/session/login` with CSRF-protected cookie sessions. The temporary `nexora.security.legacy-basic-enabled` toggle, Basic authentication filter, and Basic-only throttle have been **removed**. Standard Spring Security CSRF protection applies to all unsafe methods, including requests with an injected Basic header. Login failures for the JSON session endpoint continue to use the bounded local `SessionLoginLimiter`.
 
 The test helper `SessionTestSupport` exercises real authentication rather than bypassing security with mocked roles. This remains a localhost-only prototype without HTTPS, MFA, shared session storage, or publicly safe account recovery. No paid service was added.
+
+## Chromium browser E2E smoke checks (local demo only)
+
+The `frontend/e2e/crm.spec.ts` Playwright suite runs Chromium against the actual React/Vite interface, local Spring Boot API and disposable PostgreSQL test database. It verifies that admin login survives reload, logout removes access, an admin can add/search a synthetic lead, and a newly created MEMBER sees a read-only workspace. No real customers or external services are involved.
+
+To run locally after starting Docker/PostgreSQL and Spring Boot with a **disposable** admin account:
+
+```sh
+cd frontend
+npm install
+npx playwright install chromium
+E2E_ADMIN_PASSWORD='your-local-test-admin-password' npm run test:e2e
+```
+
+On PowerShell, set `$env:E2E_ADMIN_PASSWORD='your-local-test-admin-password'` before running `npm run test:e2e`. The frontend test runner starts its own localhost Vite server and proxies API calls to `127.0.0.1:8080`. Tests create disposable records; use a dedicated throwaway database, never a real/customer database. GitHub Actions runs these checks in a separate free/open-source Chromium job with isolated Postgres and hard-coded **CI-only** credentials. Playwright trace/video/screenshots and artifact upload are intentionally disabled to avoid exposing credentials/cookies. GitHub-hosted runner usage still counts toward your account's applicable Actions quotas; no paid service or upgrade was enabled.

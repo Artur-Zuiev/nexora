@@ -42,6 +42,16 @@ function App() {
   const shownTasks = useMemo(() => tasks.filter(task => taskFilter === 'ALL' || task.status === taskFilter), [tasks, taskFilter]);
   const overdue = tasks.filter(task => task.status === 'OPEN' && task.dueDate < localToday()).length;
   const upcoming = tasks.filter(task => task.status === 'OPEN' && task.dueDate >= localToday()).length;
+  const wonCount = leads.filter(lead => lead.status === 'WON').length;
+  const lostCount = leads.filter(lead => lead.status === 'LOST').length;
+  const closedCount = wonCount + lostCount;
+  const conversionRate = leads.length ? Math.round(wonCount / leads.length * 100) : 0;
+  const winRate = closedCount ? Math.round(wonCount / closedCount * 100) : 0;
+  const doneCount = tasks.filter(task => task.status === 'DONE').length;
+  const taskCompletionRate = tasks.length ? Math.round(doneCount / tasks.length * 100) : 0;
+  const pipelineCounts = statuses.map(status => ({
+    status, count: leads.filter(lead => lead.status === status).length
+  }));
   const leadName = (id: number) => leads.find(lead => lead.id === id)?.name ?? `Lead #${id}`;
   const filtered = useMemo(() => leads.filter(lead => {
     const q = search.trim().toLocaleLowerCase();
@@ -272,7 +282,7 @@ function App() {
         <nav aria-label="Main navigation">
           <span className="active">Overview</span>
           <span className="active-section">Lead workspace</span>
-          <span className="planned">Analytics · planned</span>
+          <span className="active-section">Analytics</span>
           <span className="planned">Automations · planned</span>
         </nav>
         <small className="sidebar-foot">Local development · CRM MVP</small>
@@ -290,6 +300,30 @@ function App() {
           <article><small>Total leads</small><strong>{leads.length}</strong></article>
           <article><small>In progress</small><strong>{leads.filter(l => l.status === 'CONTACTED' || l.status === 'QUALIFIED').length}</strong></article>
           <article><small>Won</small><strong>{leads.filter(l => l.status === 'WON').length}</strong></article>
+        </section>
+        <section className="panel analytics-panel" aria-label="CRM analytics">
+          <div className="panel-header">
+            <h2>Pipeline analytics</h2><span>Current data · all leads</span>
+          </div>
+          <div className="analytics-summary">
+            <article><small>Lead conversion</small><strong>{conversionRate}%</strong><span>Won / all leads</span></article>
+            <article><small>Win rate</small><strong>{winRate}%</strong><span>Won / won + lost</span></article>
+            <article><small>Task completion</small><strong>{taskCompletionRate}%</strong><span>{doneCount} of {tasks.length} done</span></article>
+            <article><small>Overdue follow-ups</small><strong className={overdue ? 'overdue' : ''}>{overdue}</strong><span>Open tasks past due date</span></article>
+          </div>
+          <h3>Leads by status</h3>
+          <div className="status-chart">
+            {pipelineCounts.map(({ status, count }) => {
+              const percent = leads.length ? count / leads.length * 100 : 0;
+              return <div className="status-chart-row" key={status}>
+                <div className="status-chart-label"><span>{labels[status]}</span><strong>{count}</strong></div>
+                <div className="status-track" role="meter" aria-label={`${labels[status]} leads`} aria-valuemin={0} aria-valuemax={leads.length || 1} aria-valuenow={count}>
+                  <div className={`status-fill status-${status.toLowerCase()}`} style={{ width: `${percent}%` }} />
+                </div>
+              </div>;
+            })}
+          </div>
+          <p className="analytics-caption">Snapshot of the leads and tasks currently loaded in this workspace. No historical trends or revenue estimates are calculated.</p>
         </section>
         <section className="panel">
           <h2>Add a lead</h2>

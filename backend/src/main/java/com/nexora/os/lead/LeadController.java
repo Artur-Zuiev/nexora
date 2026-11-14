@@ -71,7 +71,7 @@ public class LeadController {
             lead.note = update.note();
             activities.save(LeadActivity.of(id, LeadActivity.Kind.NOTE_UPDATED, "Note updated"));
         }
-        return repository.save(lead);
+        return LeadResponse.from(repository.save(lead));
     }
 
     private Lead findLead(Long id) {

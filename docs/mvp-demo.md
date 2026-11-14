@@ -66,3 +66,17 @@ MFA, durable rate limits/sessions, monitoring, incident response, data retention
 production migration/backup procedures, and privacy/security review are missing.
 Local CSV export may be large and browser-side CRM search is not paginated.
 Production hosting, email delivery, billing and invitation flows are not configured.
+
+## Additional security acceptance scenarios (disposable accounts)
+
+The Chromium suite now also tests two real-browser account-safety paths:
+- Disable a MEMBER while they have an active session in a different browser
+  context. On reload they must return to sign-in, without access to CRM data.
+  Re-enable the MEMBER and verify that a fresh login succeeds.
+- Have a MEMBER rotate their password through **Account security**. The current
+  session must end, the old password must no longer sign in, and the replacement
+  password must work.
+
+These automated tests create temporary demo accounts. **Do not run them against
+personal, shared, or customer databases.** Their success is not a replacement
+for manual review of network failures, invalid inputs and browser accessibility.

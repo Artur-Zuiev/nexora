@@ -152,3 +152,74 @@ test('members cannot see bulk CSV export controls', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Export leads CSV' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Export tasks CSV' })).toHaveCount(0);
 });
+
+test('disabling a member revokes the existing session and re-enabling restores login', async ({ browser }) => {
+  const adminContext = await browser.newContext();
+  const memberContext = await browser.newContext();
+  const admin = await adminContext.newPage();
+  const member = await memberContext.newPage();
+  try {
+    await signIn(admin);
+    const unique = Date.now().toString(36);
+    const username = `disabled-e2e-${unique}`;
+    const password = `member-safe-${unique}-12345`;
+
+    await admin.getByRole('textbox', { name: 'New member username' }).fill(username);
+    await admin.getByLabel('Temporary password (12+ characters)').fill(password);
+    await admin.getByRole('button', { name: 'Create member' }).click();
+    await expect(admin.getByRole('status').filter({ hasText: 'Member created' })).toBeVisible();
+
+    await signIn(member, username, password);
+    await expect(member.getByRole('heading', { name: 'Lead pipeline' })).toBeVisible();
+
+    const row = admin.locator('#team').getByRole('row').filter({ hasText: username });
+    await expect(row).toContainText('Active');
+    await row.getByRole('button', { name: 'Disable' }).click();
+    await expect(row).toContainText('Disabled');
+
+    // Existing authenticated cookie must no longer grant access after admin revocation.
+    await member.reload();
+    await expect(member.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+    await expect(member.getByRole('heading', { name: 'Lead pipeline' })).toHaveCount(0);
+
+    await row.getByRole('button', { name: 'Enable' }).click();
+    await expect(row).toContainText('Active');
+    await signIn(member, username, password);
+    await expect(member.getByRole('heading', { name: 'Lead pipeline' })).toBeVisible();
+  } finally {
+    await memberContext.close();
+    await adminContext.close();
+  }
+});
+
+test('member password change signs out and old password cannot log in', async ({ page }) => {
+  await signIn(page);
+  const unique = Date.now().toString(36);
+  const username = `rotate-e2e-${unique}`;
+  const initialPassword = `initial-e2e-${unique}-12345`;
+  const rotatedPassword = `rotated-e2e-${unique}-67890`;
+
+  await page.getByRole('textbox', { name: 'New member username' }).fill(username);
+  await page.getByLabel('Temporary password (12+ characters)').fill(initialPassword);
+  await page.getByRole('button', { name: 'Create member' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Member created' })).toBeVisible();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+
+  await signIn(page, username, initialPassword);
+  const security = page.locator('#account-security');
+  await security.getByLabel('Current password').fill(initialPassword);
+  await security.getByLabel('New password (12+ characters)').fill(rotatedPassword);
+  await security.getByLabel('Confirm new password').fill(rotatedPassword);
+  await security.getByRole('button', { name: 'Change password' }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('Password changed');
+
+  await page.getByRole('textbox', { name: 'Username' }).fill(username);
+  await page.getByLabel('Password', { exact: true }).fill(initialPassword);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Sign in failed');
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+
+  await signIn(page, username, rotatedPassword);
+  await expect(page.getByRole('heading', { name: 'Lead pipeline' })).toBeVisible();
+});

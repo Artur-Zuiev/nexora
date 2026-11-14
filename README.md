@@ -59,7 +59,8 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Create-lead request DTO, field limits, status validation and structured validation errors
 - [x] Single-admin HTTP Basic for local development (not production auth)
 - [ ] Production authentication, password rotation, session security and granular roles
-- [ ] Tenant isolation for multiple organizations (required before adding user accounts)
+- [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
+- [ ] Real multi-organization principal resolution, enforced schema constraints and production isolation (required before user accounts)
 - [x] Tenant threat model and migration plan (`docs/tenant-isolation-design.md`)
 - [ ] Flyway migrations
 - [ ] Unit/integration tests, Testcontainers and frontend tests
@@ -109,3 +110,9 @@ The API now returns explicit `LeadResponse` and `LeadTaskResponse` objects inste
 ## Preparing for multiple organizations
 
 See [the tenant-isolation design](docs/tenant-isolation-design.md) for the required organization-scoped data model, migration plan and two-tenant authorization tests. This milestone also adds integration tests confirming that anonymous and invalid-credential requests are rejected and that the configured local admin can access the API. **Organization scoping and multiple user accounts are still not implemented.**
+
+## Tenant scoping milestone (local-only)
+
+All lead, task and activity lookups now use a server-resolved tenant identifier instead of accepting one supplied by the browser. The current admin maps to the **single fixed** `local-admin` organization; account registration and multi-organization membership are **not implemented**. New records receive that tenant ID. On startup, the temporary local database backfill assigns existing rows with missing tenant IDs to `local-admin` after Hibernate has updated the schema. This preserves existing demo data but is **not** a migration suitable for production: it lacks managed versioning, hard foreign keys, and verified rollback procedures. Back up your local PostgreSQL volume before updating a populated database.
+
+Repository-level unit tests verify that lead, task and activity operations reject records outside the resolved tenant and that new records receive their tenant ID. These do **not** certify isolation for multiple real authenticated organizations. Do not expose the service or use real customer data.

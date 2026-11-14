@@ -23,3 +23,12 @@
 button:disabled{opacity:.56;cursor:not-allowed}
 @media(max-width:850px){.toolbar{grid-template-columns:1fr 1fr}.toolbar .secondary-button{grid-column:1/-1}.note-actions button,.details-button{width:auto}}
 @media(max-width:560px){.toolbar{grid-template-columns:1fr}.toolbar .secondary-button{grid-column:auto}.note-actions button{width:auto}}
+
+.activity-history{margin-top:30px;border-top:1px solid #e5eaf2;padding-top:24px}
+.activity-history h3{font-size:16px;color:#17243b;margin:0 0 15px}
+.activity-history ol{padding:0;margin:0;list-style:none}
+.activity-history li{padding:12px 0 12px 24px;position:relative;border-left:2px solid #dce8f9;margin-left:6px}
+.activity-history li:before{content:'';position:absolute;left:-6px;top:19px;width:10px;height:10px;border-radius:50%;background:#4479c5}
+.activity-history li div{display:grid;gap:4px}
+.activity-history li strong{font-size:13px;font-weight:650;color:#293d59}
+.activity-history li small{font-size:12px;color:#8190a3}

@@ -16,6 +16,9 @@ public class LeadTask {
     @Column(name = "lead_id", nullable = false)
     public Long leadId;
 
+    @Column(name = "tenant_id", length = 64)
+    public String tenantId;
+
     @Column(nullable = false, length = 160)
     public String title;
 

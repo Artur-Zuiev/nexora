@@ -13,6 +13,9 @@ public class LeadActivity {
     @Column(name = "lead_id", nullable = false)
     public Long leadId;
 
+    @Column(name = "tenant_id", length = 64)
+    public String tenantId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
     public Kind kind;
@@ -30,9 +33,10 @@ public class LeadActivity {
         if (createdAt == null) createdAt = Instant.now();
     }
 
-    public static LeadActivity of(Long leadId, Kind kind, String summary) {
+    public static LeadActivity of(String tenantId, Long leadId, Kind kind, String summary) {
         LeadActivity activity = new LeadActivity();
         activity.leadId = leadId;
+        activity.tenantId = tenantId;
         activity.kind = kind;
         activity.summary = summary;
         return activity;

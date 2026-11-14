@@ -3,6 +3,7 @@ package com.nexora.os.lead;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import com.nexora.os.config.CurrentTenant;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,7 +15,9 @@ class LeadActivityTest {
     void recordsCreationWithoutStoringCustomerContentInTimeline() {
         LeadRepository leads = mock(LeadRepository.class);
         LeadActivityRepository activities = mock(LeadActivityRepository.class);
-        LeadController controller = new LeadController(leads, activities);
+        CurrentTenant tenant = mock(CurrentTenant.class);
+        when(tenant.id()).thenReturn("local-admin");
+        LeadController controller = new LeadController(leads, activities, tenant);
         when(leads.save(any(Lead.class))).thenAnswer(invocation -> {
             Lead lead = invocation.getArgument(0);
             lead.id = 12L;
@@ -36,11 +39,13 @@ class LeadActivityTest {
     void onlyRecordsActualStatusChanges() {
         LeadRepository leads = mock(LeadRepository.class);
         LeadActivityRepository activities = mock(LeadActivityRepository.class);
-        LeadController controller = new LeadController(leads, activities);
+        CurrentTenant tenant = mock(CurrentTenant.class);
+        when(tenant.id()).thenReturn("local-admin");
+        LeadController controller = new LeadController(leads, activities, tenant);
         Lead lead = new Lead();
         lead.id = 7L;
         lead.status = Lead.Status.NEW;
-        when(leads.findById(7L)).thenReturn(Optional.of(lead));
+        when(leads.findByIdAndTenantId(7L, "local-admin")).thenReturn(Optional.of(lead));
         when(leads.save(any(Lead.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         controller.changeStatus(7L, new LeadController.StatusUpdate(Lead.Status.NEW));
@@ -55,16 +60,18 @@ class LeadActivityTest {
     void historyOnlyReturnsRequestedLeadEntries() {
         LeadRepository leads = mock(LeadRepository.class);
         LeadActivityRepository activities = mock(LeadActivityRepository.class);
-        LeadController controller = new LeadController(leads, activities);
-        when(leads.existsById(7L)).thenReturn(true);
-        LeadActivity activity = LeadActivity.of(7L, LeadActivity.Kind.NOTE_UPDATED, "Note updated");
+        CurrentTenant tenant = mock(CurrentTenant.class);
+        when(tenant.id()).thenReturn("local-admin");
+        LeadController controller = new LeadController(leads, activities, tenant);
+        when(leads.existsByIdAndTenantId(7L, "local-admin")).thenReturn(true);
+        LeadActivity activity = LeadActivity.of("local-admin", 7L, LeadActivity.Kind.NOTE_UPDATED, "Note updated");
         activity.id = 2L;
         activity.onCreate();
-        when(activities.findTop50ByLeadIdOrderByCreatedAtDescIdDesc(7L)).thenReturn(List.of(activity));
+        when(activities.findTop50ByLeadIdAndTenantIdOrderByCreatedAtDescIdDesc(7L, "local-admin")).thenReturn(List.of(activity));
 
         var response = controller.history(7L);
         assertEquals(1, response.size());
         assertEquals("NOTE_UPDATED", response.get(0).kind());
-        verify(activities).findTop50ByLeadIdOrderByCreatedAtDescIdDesc(7L);
+        verify(activities).findTop50ByLeadIdAndTenantIdOrderByCreatedAtDescIdDesc(7L, "local-admin");
     }
 }

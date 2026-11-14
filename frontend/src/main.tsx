@@ -28,6 +28,11 @@ function App() {
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState('');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [tasks, setTasks] = useState<LeadTask[]>([]);
   const [taskTitle, setTaskTitle] = useState('');
@@ -77,6 +82,10 @@ function App() {
     setMemberPassword('');
     setTeamMessage('');
     setPassword('');
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordMessage('');
     setLeads([]);
     setTasks([]);
     setSelectedId(null);
@@ -161,6 +170,39 @@ function App() {
       setTeam(await response.json() as TeamMember[]);
     } catch (e) {
       if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not load team members.');
+    }
+  }
+
+  async function changeMyPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordMessage('');
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage('New passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 12 || newPassword.length > 128) {
+      setPasswordMessage('New password must be 12–128 characters.');
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      const response = await api('http://localhost:8080/api/me/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      if (!response.ok) throw new Error('Password change failed');
+      signOut();
+      setAuthError('Password changed. Please sign in with your new password.');
+    } catch (error) {
+      if (error instanceof Error && error.message !== 'Unauthorized') {
+        setPasswordMessage('Could not update password. Check your current password and choose a different password.');
+      }
+    } finally {
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordSaving(false);
     }
   }
 
@@ -456,6 +498,17 @@ function App() {
                 </button> : task.status === 'OPEN' ? 'Open' : 'Done'}</td>
               </tr>)}</tbody>
             </table></div>}
+        </section>
+        <section className="panel" aria-label="Account security">
+          <h2>Account security</h2>
+          <p>Change your password. You will be signed out after a successful change.</p>
+          <form className="password-form" onSubmit={changeMyPassword}>
+            <label><span>Current password</span><input type="password" required autoComplete="current-password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} /></label>
+            <label><span>New password (12+ characters)</span><input type="password" required minLength={12} maxLength={128} autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)} /></label>
+            <label><span>Confirm new password</span><input type="password" required minLength={12} maxLength={128} autoComplete="new-password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} /></label>
+            <button disabled={passwordSaving} type="submit">{passwordSaving ? 'Updating…' : 'Change password'}</button>
+          </form>
+          {passwordMessage && <p role="status" className="error">{passwordMessage}</p>}
         </section>
         {canEdit && <section className="panel" aria-label="Team directory">
           <div className="panel-header"><h2>Team members</h2><span>{team.length} accounts</span></div>

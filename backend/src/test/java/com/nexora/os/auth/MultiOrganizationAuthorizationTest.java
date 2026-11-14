@@ -71,6 +71,28 @@ class MultiOrganizationAuthorizationTest {
         assertTrue(containsId(memberView, foreignLead));
         assertFalse(containsId(memberView, localLead));
 
+        // Members may read their own organization's data, but not modify CRM records.
+        mvc.perform(post("/api/tasks")
+                .header(HttpHeaders.AUTHORIZATION, basic(user, password))
+                .contentType("application/json")
+                .content("{\\"leadId\\":" + foreignLead + ",\\"title\\":\\"Follow up\\",\\"dueDate\\":\\"2027-02-01\\"}"))
+                .andExpect(status().isForbidden());
+
+        // The team roster is only visible to admins of their own organization.
+        mvc.perform(get("/api/team")
+                .header(HttpHeaders.AUTHORIZATION, basic(user, password)))
+                .andExpect(status().isForbidden());
+
+        JsonNode localTeam = json.readTree(mvc.perform(get("/api/team")
+                .header(HttpHeaders.AUTHORIZATION, basic("admin", "integration-test-secret-123")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertTrue(localTeam.isArray());
+        assertTrue(localTeam.size() >= 1);
+        for (JsonNode teamMember : localTeam) {
+            assertFalse(teamMember.has("passwordHash"));
+            assertFalse(teamMember.path("username").asText().equals(user));
+        }
+
         mvc.perform(get("/api/leads/" + foreignLead + "/activities")
                 .header(HttpHeaders.AUTHORIZATION, basic("admin", "integration-test-secret-123")))
                 .andExpect(status().isNotFound());

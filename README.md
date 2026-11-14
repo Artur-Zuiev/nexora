@@ -42,6 +42,10 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 
 The starter currently uses demo-only local database credentials in `docker-compose.yml` and `application.properties`. Replace these and add secrets management before any deployment.
 
+## Automated checks
+
+A GitHub Actions workflow runs on pull requests and pushes to `main`. It starts a temporary PostgreSQL 17 service, runs `mvn verify` on Java 21, and checks the TypeScript frontend with `npm run build` on Node.js 22. These checks do not deploy the application and do not require a paid hosting service. Since the frontend currently has no committed lockfile, CI uses `npm install`; commit a lockfile and switch to `npm ci` for reproducible installs.
+
 ## Roadmap
 
 - [ ] DTOs, strict request validation and structured errors
@@ -49,11 +53,12 @@ The starter currently uses demo-only local database credentials in `docker-compo
 - [ ] Tenant isolation for multiple organizations
 - [ ] Flyway migrations
 - [ ] Unit/integration tests, Testcontainers and frontend tests
-- [ ] CI pipeline, deployment, monitoring
+- [x] Initial CI workflow (pending first successful run)
+- [ ] Deployment and monitoring
 - [ ] Customer activities, workflow automations and analytics
 
 ## Status
 
-Version 0.1 is a portfolio starter. CI build and end-to-end functionality have **not yet been verified**.
+Version 0.1 is a portfolio starter. The first CI run and end-to-end functionality have **not yet been verified**.
 
 **Developer:** [Artur Zuiev](https://github.com/Artur-Zuiev)

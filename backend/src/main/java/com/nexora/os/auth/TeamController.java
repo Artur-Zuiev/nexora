@@ -26,10 +26,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class TeamController {
     private final AppUserRepository users;
     private final PasswordEncoder encoder;
+    private final SecurityAudit audit;
 
-    public TeamController(AppUserRepository users, PasswordEncoder encoder) {
+    public TeamController(AppUserRepository users, PasswordEncoder encoder, SecurityAudit audit) {
         this.users = users;
         this.encoder = encoder;
+        this.audit = audit;
     }
 
     @GetMapping
@@ -57,7 +59,10 @@ public class TeamController {
         member.role = AppUser.Role.MEMBER;
         member.enabled = true;
         try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(TeamMember.from(users.saveAndFlush(member)));
+            AppUser created = users.saveAndFlush(member);
+            audit.record(principal.tenantId(), principal.getUsername(),
+                    SecurityAudit.Event.MEMBER_CREATED, created.username);
+            return ResponseEntity.status(HttpStatus.CREATED).body(TeamMember.from(created));
         } catch (DataIntegrityViolationException ex) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists");
         }
@@ -76,8 +81,15 @@ public class TeamController {
         if (member.role == AppUser.Role.ADMIN && !request.enabled()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Disabling admins is not supported yet");
         }
+        boolean changed = member.enabled != request.enabled();
         member.enabled = request.enabled();
-        return TeamMember.from(users.save(member));
+        AppUser saved = users.save(member);
+        if (changed) {
+            audit.record(principal.tenantId(), principal.getUsername(),
+                    request.enabled() ? SecurityAudit.Event.MEMBER_ENABLED
+                                      : SecurityAudit.Event.MEMBER_DISABLED, saved.username);
+        }
+        return TeamMember.from(saved);
     }
 
     /**
@@ -111,6 +123,8 @@ public class TeamController {
         }
         member.passwordHash = encoder.encode(request.newPassword());
         users.saveAndFlush(member);
+        audit.record(principal.tenantId(), principal.getUsername(),
+                SecurityAudit.Event.MEMBER_PASSWORD_RESET, member.username);
     }
 
     public record ResetMemberPassword(

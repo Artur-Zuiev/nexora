@@ -43,6 +43,7 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | GET | `/api/me` | Current username, organization ID and role |
+| GET | `/api/security/events` | Admin-only 100 recent security events for own organization |
 | POST | `/api/me/password` | Authenticated self-service password change (old password required) |
 | POST | `/api/team/{id}/reset-password` | ADMIN-only local MEMBER password reset, requires admin password |
 | GET | `/api/team` | Admin-only team directory for the current organization |
@@ -76,7 +77,7 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Database-level organization references and tenant-safe lead foreign keys
 - [ ] Real multi-organization principal resolution and production isolation (required before user accounts)
 - [x] Tenant threat model and migration plan (`docs/tenant-isolation-design.md`)
-- [x] Flyway V1–V4 migrations, with organization constraints and database user storage
+- [x] Flyway V1–V5 migrations, including tenant-scoped security audit history
 - [ ] Production-grade, reviewed migration and backup/restore process
 - [ ] Unit/integration tests, Testcontainers and frontend tests
 - [x] GitHub Actions build/test checks
@@ -181,3 +182,9 @@ Automated Spring Security and PostgreSQL tests now verify that a successful pass
 When a MEMBER forgets their password, an ADMIN may use the Team members **Reset password** action. The admin must re-enter their own existing password and set a distinct new password (12–128 characters). The server verifies the admin again, restricts the account lookup to their organization, rejects ADMIN or disabled targets, and hashes the replacement. The API response does not contain the password. The old member password then stops working for new Basic-authenticated requests. There is no email delivery and no paid service.
 
 **This is not production-grade password recovery.** Admins must communicate the replacement through an appropriate secure channel; the application has no first-login forced password change, MFA, audit event log, per-account rate limiting or secure browser sessions. It remains bound to localhost; do not expose it or use real customer accounts. Admin recovery of their own forgotten password is not implemented.
+
+## Security activity log (local-only)
+
+Flyway V5 adds a database-backed, per-organization timeline for successful member creation, enabling/disabling members, member password reset, and self-service password changes. Administrators can view the last 100 events in the **Security history** panel or through `GET /api/security/events`. Events store only the event type, time, actor username, target username and tenant ID — **never passwords, hashes or request bodies**. Member accounts cannot query the audit endpoint. The event insert uses the same database transaction as the state change so both changes commit or roll back together.
+
+This is an application activity record, **not** a tamper-proof compliance audit, an intrusion detector, or failed-login monitoring. No brute-force throttling or IP-based monitoring is implemented in this step. Logs need retention, access review, and production controls before using real data. This milestone adds no external services or paid subscriptions.

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './style.css';
 
 type Account = { username: string; organizationId: string; role: 'ADMIN' | 'MEMBER' };
+type SecurityEvent = { id: number; actorUsername: string; eventType: string; targetUsername: string; createdAt: string };
 type TeamMember = { id: number; username: string; role: string; enabled: boolean; createdAt: string };
 type Status = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'WON' | 'LOST';
 type Lead = { id: number; name: string; email: string; note: string | null; status: Status };
@@ -21,6 +22,7 @@ function App() {
   const [auth, setAuth] = useState('');
   const [account, setAccount] = useState<Account | null>(null);
   const [team, setTeam] = useState<TeamMember[]>([]);
+  const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
   const [memberUsername, setMemberUsername] = useState('');
   const [memberPassword, setMemberPassword] = useState('');
   const [teamSaving, setTeamSaving] = useState(false);
@@ -81,6 +83,7 @@ function App() {
     setAuth('');
     setAccount(null);
     setTeam([]);
+    setSecurityEvents([]);
     setMemberUsername('');
     setMemberPassword('');
     setTeamMessage('');
@@ -176,6 +179,16 @@ function App() {
       setTeam(await response.json() as TeamMember[]);
     } catch (e) {
       if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not load team members.');
+    }
+  }
+
+  async function loadSecurityEvents() {
+    if (!canEdit) return;
+    try {
+      const response = await api('http://localhost:8080/api/security/events');
+      setSecurityEvents(await response.json() as SecurityEvent[]);
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not load security history.');
     }
   }
 
@@ -286,7 +299,7 @@ function App() {
   }
 
   useEffect(() => { if (auth) { void load(); void loadTasks(); } }, [auth]);
-  useEffect(() => { if (auth && canEdit) void loadTeam(); }, [auth, canEdit]);
+  useEffect(() => { if (auth && canEdit) { void loadTeam(); void loadSecurityEvents(); } }, [auth, canEdit]);
 
   async function addTask(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -575,6 +588,22 @@ function App() {
             <button type="button" className="secondary-button" onClick={() => {setResetMemberId(null);setResetAdminPassword('');setResetNewPassword('');}}>Cancel</button>
           </form>}
           <p className="analytics-caption">Local development only. Account recovery requires your administrator password. Share replacements securely; no email is sent.</p>
+        </section>}
+        {canEdit && <section className="panel" aria-label="Security events">
+          <div className="panel-header"><h2>Security history</h2>
+            <button type="button" className="secondary-button" onClick={() => void loadSecurityEvents()}>Refresh events</button>
+          </div>
+          {securityEvents.length === 0 ? <p className="empty">No security events recorded yet.</p> :
+          <div className="table-wrap"><table>
+            <thead><tr><th>Action</th><th>By</th><th>Account</th><th>Date</th></tr></thead>
+            <tbody>{securityEvents.map(event => <tr key={event.id}>
+              <td>{event.eventType.replaceAll('_', ' ')}</td>
+              <td>{event.actorUsername}</td>
+              <td>{event.targetUsername}</td>
+              <td>{new Date(event.createdAt).toLocaleString()}</td>
+            </tr>)}</tbody>
+          </table></div>}
+          <p className="analytics-caption">Local development audit history of successful security actions. This is not tamper-proof.</p>
         </section>}
         {selected && <section className="panel lead-detail" aria-label="Lead details">
           <div className="panel-header">

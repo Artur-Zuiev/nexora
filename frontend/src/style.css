@@ -38,3 +38,26 @@ button:disabled{opacity:.56;cursor:not-allowed}
 .follow-up-form input[type="date"]{width:100%}
 .overdue{font-weight:700;color:#bd2e42}
 @media(max-width:850px){.follow-up-form form{align-items:stretch}}
+
+/* Pipeline analytics: no charting library required */
+.analytics-panel h3{font-size:15px;margin:24px 0 18px}
+.analytics-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+.analytics-summary article{border:1px solid #e5eaf2;border-radius:12px;background:#f8fafd;padding:17px;display:flex;flex-direction:column;gap:8px}
+.analytics-summary small{color:#75849b;font-size:12px}
+.analytics-summary strong{color:#17243b;font-size:29px;letter-spacing:-.8px}
+.analytics-summary strong.overdue{color:#bd2e42}
+.analytics-summary span{font-size:11px;color:#7a889c;line-height:1.4}
+.status-chart{display:grid;gap:13px}
+.status-chart-row{display:grid;grid-template-columns:132px minmax(0,1fr);align-items:center;gap:15px}
+.status-chart-label{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#5f708a;font-size:13px}
+.status-chart-label strong{color:#263a55;font-variant-numeric:tabular-nums}
+.status-track{background:#edf1f7;border-radius:8px;overflow:hidden;height:12px}
+.status-fill{height:100%;border-radius:8px;transition:width .2s ease;background:#648abd}
+.status-new{background:#8cabc9}
+.status-contacted{background:#6e91d9}
+.status-qualified{background:#7a72c9}
+.status-won{background:#4b9b78}
+.status-lost{background:#bb8993}
+.analytics-caption{color:#8492a6;font-size:12px;line-height:1.5;margin:20px 0 0}
+@media(max-width:920px){.analytics-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.status-chart-row{grid-template-columns:92px minmax(0,1fr);gap:10px}.analytics-summary article{padding:13px}.analytics-summary strong{font-size:24px}}

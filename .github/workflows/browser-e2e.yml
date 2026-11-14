@@ -1,0 +1,75 @@
+name: Browser E2E (Chromium)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: nexora
+          POSTGRES_USER: nexora
+          POSTGRES_PASSWORD: ci_e2e_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexora -d nexora"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DB_URL: jdbc:postgresql://127.0.0.1:5432/nexora
+      DB_USER: nexora
+      DB_PASSWORD: ci_e2e_only
+      NEXORA_ADMIN_PASSWORD: ci-e2e-admin-password-123
+      E2E_ADMIN_PASSWORD: ci-e2e-admin-password-123
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install frontend test dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+      - name: Install open-source Chromium test browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Start localhost Spring API with disposable PostgreSQL
+        run: |
+          cd backend
+          nohup mvn --batch-mode --no-transfer-progress spring-boot:run > ../backend-e2e.log 2>&1 &
+          echo $! > ../backend-e2e.pid
+          for i in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8080/api/session/csrf >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          tail -n 80 ../backend-e2e.log
+          exit 1
+      - name: Exercise login, session, logout, lead and member flows in Chromium
+        working-directory: frontend
+        run: npm run test:e2e
+      - name: Show backend startup diagnostics on failure
+        if: failure()
+        run: tail -n 100 backend-e2e.log || true

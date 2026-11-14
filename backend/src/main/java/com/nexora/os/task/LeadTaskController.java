@@ -24,18 +24,18 @@ public class LeadTaskController {
     }
 
     @GetMapping
-    public List<LeadTask> all() {
-        return tasks.findAllByOrderByDueDateAscIdAsc();
+    public List<LeadTaskResponse> all() {
+        return tasks.findAllByOrderByDueDateAscIdAsc().stream().map(LeadTaskResponse::from).toList();
     }
 
     @GetMapping("/lead/{leadId}")
-    public List<LeadTask> byLead(@PathVariable Long leadId) {
+    public List<LeadTaskResponse> byLead(@PathVariable Long leadId) {
         if (!leads.existsById(leadId)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lead not found");
-        return tasks.findByLeadIdOrderByDueDateAscIdAsc(leadId);
+        return tasks.findByLeadIdOrderByDueDateAscIdAsc(leadId).stream().map(LeadTaskResponse::from).toList();
     }
 
     @PostMapping
-    public ResponseEntity<LeadTask> create(@Valid @RequestBody CreateTask request) {
+    public ResponseEntity<LeadTaskResponse> create(@Valid @RequestBody CreateTask request) {
         if (!leads.existsById(request.leadId()))
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lead not found");
         LeadTask task = new LeadTask();
@@ -43,15 +43,15 @@ public class LeadTaskController {
         task.title = request.title().trim();
         task.dueDate = request.dueDate();
         task.status = LeadTask.Status.OPEN;
-        return ResponseEntity.status(HttpStatus.CREATED).body(tasks.save(task));
+        return ResponseEntity.status(HttpStatus.CREATED).body(LeadTaskResponse.from(tasks.save(task)));
     }
 
     @PatchMapping("/{id}/status")
-    public LeadTask updateStatus(@PathVariable Long id, @Valid @RequestBody UpdateStatus request) {
+    public LeadTaskResponse updateStatus(@PathVariable Long id, @Valid @RequestBody UpdateStatus request) {
         LeadTask task = tasks.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found"));
         task.status = request.status();
-        return tasks.save(task);
+        return LeadTaskResponse.from(tasks.save(task));
     }
 
     public record CreateTask(@NotNull Long leadId,

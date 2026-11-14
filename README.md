@@ -68,7 +68,7 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Database-backed users with hashed passwords and organization-aware principals (local-only)
 - [x] First role permissions: MEMBER read-only CRM, ADMIN writes and views team roster
 - [x] Admin-only local MEMBER creation and enable/disable controls
-- [x] Authenticated password change with existing password verification
+- [x] Authenticated password change with existing password verification and PostgreSQL integration tests
 - [ ] Invitation delivery, forgotten-password reset, sessions and full granular role permissions
 - [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
 - [x] Database-level organization references and tenant-safe lead foreign keys
@@ -169,3 +169,7 @@ The admin dashboard now has a **Team members** section where an ADMIN can create
 Any authenticated ADMIN or MEMBER can change their own password from **Account security** by supplying the current password and a different 12–128 character replacement. The backend verifies the existing encoded password and stores a newly hashed replacement. The browser clears its in-memory HTTP Basic credentials and signs out after success. Previous credentials stop authenticating subsequent requests; HTTP Basic does **not** revoke already-running requests or provide secure sessions. Passwords are not stored in the frontend or returned by the API.
 
 This feature is not a forgotten-password recovery mechanism. No email sending, paid provider, password-reset token, TLS, production session management or public registration is implemented. Do not use the prototype with real account credentials or expose it beyond localhost.
+
+## Password rotation integration verification
+
+Automated Spring Security and PostgreSQL tests now verify that a successful password change stores a new encoded password, rejects the previous login credentials, and accepts the replacement credentials. Negative tests cover incorrect current passwords, reusing the currently stored password, and too-short replacements. This does **not** prevent reuse of passwords from older rotations, provide password recovery, invalidate already-running HTTP requests, or provide production sessions. No paid provider or external service is needed.

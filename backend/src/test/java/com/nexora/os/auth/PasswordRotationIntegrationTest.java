@@ -55,8 +55,7 @@ class PasswordRotationIntegrationTest {
         assertTrue(encoder.matches(replacement, hashed));
         assertFalse(encoder.matches(previous, hashed));
 
-        mvc.perform(get("/api/me").with(SessionTestSupport.asUser(mvc, username, previous)))
-                .andExpect(status().isUnauthorized());
+        SessionTestSupport.expectLoginFailure(mvc, username, previous);
         mvc.perform(get("/api/me").with(SessionTestSupport.asUser(mvc, username, replacement)))
                 .andExpect(status().isOk());
     }

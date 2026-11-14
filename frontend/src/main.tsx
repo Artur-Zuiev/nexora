@@ -8,15 +8,48 @@ const API = 'http://localhost:8080/api/leads';
 const statuses: Status[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'WON', 'LOST'];
 
 function App() {
+  const [credentials, setCredentials] = useState('');
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
   const [leads, setLeads] = useState<Lead[]>([]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  function authorizedFetch(url: string, init: RequestInit = {}) {
+    return fetch(url, { ...init, headers: { ...init.headers, Authorization: `Basic ${credentials}` } });
+  }
+
+  async function signIn(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthError('');
+    const encoded = btoa(`${username}:${password}`);
+    try {
+      const response = await fetch(API, { headers: { Authorization: `Basic ${encoded}` } });
+      if (!response.ok) throw new Error('Invalid credentials');
+      setLeads(await response.json() as Lead[]);
+      setCredentials(encoded);
+      setPassword('');
+      setError('');
+      setLoading(false);
+    } catch {
+      setAuthError('Cannot sign in. Check your username, password and backend connection.');
+    }
+  }
+
+  function signOut() {
+    setCredentials('');
+    setLeads([]);
+    setPassword('');
+    setError('');
+  }
+
 
   async function load() {
     try {
-      const response = await fetch(API);
+      const response = await authorizedFetch(API);
       if (!response.ok) throw new Error('Cannot load leads');
       setLeads(await response.json() as Lead[]);
       setError('');
@@ -26,7 +59,7 @@ function App() {
       setLoading(false);
     }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { if (credentials) void load(); }, [credentials]);
 
   async function add(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,7 +80,7 @@ function App() {
 
   async function changeStatus(id: number, status: Status) {
     try {
-      const response = await fetch(`${API}/${id}/status`, {
+      const response = await authorizedFetch(`${API}/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
@@ -58,6 +91,23 @@ function App() {
       setError('Could not update status.');
     }
   }
+
+  if (!credentials) return (
+    <main className="login-page">
+      <section className="login-card">
+        <div className="brand login-brand">◆ Nexora <small>Business platform</small></div>
+        <h1>Welcome back</h1>
+        <p>Sign in to your local workspace.</p>
+        <form onSubmit={signIn}>
+          <label><span>Username</span><input required value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" /></label>
+          <label><span>Password</span><input required type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" /></label>
+          <button type="submit">Sign in</button>
+        </form>
+        {authError && <p role="alert" className="error">{authError}</p>}
+        <small>Local development only · Do not use real customer data</small>
+      </section>
+    </main>
+  );
 
   return (
     <div className="app">
@@ -78,7 +128,7 @@ function App() {
             <h1>Business overview</h1>
             <p>Track opportunities and manage your customer pipeline.</p>
           </div>
-          <span className="avatar" aria-label="Demo user">AZ</span>
+          <button type="button" className="sign-out" onClick={signOut}>Sign out</button>
         </header>
         <section className="metrics" aria-label="Pipeline summary">
           <article><small>Total leads</small><strong>{leads.length}</strong></article>

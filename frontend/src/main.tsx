@@ -5,6 +5,7 @@ import './style.css';
 type Status = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'WON' | 'LOST';
 type Lead = { id: number; name: string; email: string; note: string | null; status: Status };
 type StatusFilter = Status | 'ALL';
+type LeadActivity = { id: number; kind: 'CREATED' | 'STATUS_CHANGED' | 'NOTE_UPDATED'; summary: string; createdAt: string };
 const API = 'http://localhost:8080/api/leads';
 const statuses: Status[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'WON', 'LOST'];
 const labels: Record<Status, string> = {
@@ -23,6 +24,8 @@ function App() {
   const [filter, setFilter] = useState<StatusFilter>('ALL');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [note, setNote] = useState('');
+  const [activity, setActivity] = useState<LeadActivity[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,6 +45,7 @@ function App() {
     setLeads([]);
     setSelectedId(null);
     setNote('');
+    setActivity([]);
     setError('');
     setSuccess('');
   }
@@ -116,6 +120,7 @@ function App() {
       setName('');
       setEmail('');
       await load();
+      await loadActivity(created.id);
       setSelectedId(created.id);
       setNote(created.note ?? '');
       setSuccess('Lead added successfully.');
@@ -139,6 +144,7 @@ function App() {
         body: JSON.stringify({ status })
       });
       await load();
+      if (selectedId === id) await loadActivity(id);
       setSuccess('Status updated.');
     } catch (e) {
       if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not update status.');
@@ -160,6 +166,7 @@ function App() {
         body: JSON.stringify({ note })
       });
       await load();
+      await loadActivity(selected.id);
       setSuccess('Note saved.');
     } catch (e) {
       if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not save note.');
@@ -168,9 +175,23 @@ function App() {
     }
   }
 
+  async function loadActivity(id: number) {
+    setActivityLoading(true);
+    try {
+      const response = await api(`${API}/${id}/activities`);
+      setActivity(await response.json() as LeadActivity[]);
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unauthorized') setError('Could not load activity history.');
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
   function openLead(lead: Lead) {
     setSelectedId(lead.id);
     setNote(lead.note ?? '');
+    setActivity([]);
+    void loadActivity(lead.id);
     setError('');
     setSuccess('');
   }
@@ -254,7 +275,7 @@ function App() {
         {selected && <section className="panel lead-detail" aria-label="Lead details">
           <div className="panel-header">
             <div><span className="eyebrow">LEAD DETAILS</span><h2>{selected.name}</h2></div>
-            <button type="button" className="secondary-button" onClick={() => setSelectedId(null)}>Close</button>
+            <button type="button" className="secondary-button" onClick={() => { setSelectedId(null); setActivity([]); }}>Close</button>
           </div>
           <p><strong>Email:</strong> <a href={`mailto:${selected.email}`}>{selected.email}</a></p>
           <p><strong>Status:</strong> {labels[selected.status]}</p>
@@ -263,6 +284,14 @@ function App() {
             <textarea id="lead-note" rows={5} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} placeholder="Follow-up details, customer needs, next steps…" />
             <div className="note-actions"><small>{note.length} / 2000</small><button disabled={saving || note === (selected.note ?? '')} type="submit">Save note</button></div>
           </form>
+          <div className="activity-history">
+            <h3>Recent activity</h3>
+            {activityLoading ? <p className="empty">Loading activity…</p> : activity.length === 0 ?
+              <p className="empty">No recorded activity yet.</p> :
+              <ol>{activity.map(item => <li key={item.id}>
+                <div><strong>{item.summary}</strong><small>{new Date(item.createdAt).toLocaleString()}</small></div>
+              </li>)}</ol>}
+          </div>
         </section>}
       </main>
     </div>

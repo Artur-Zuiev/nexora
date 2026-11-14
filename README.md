@@ -44,6 +44,7 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 | --- | --- | --- |
 | GET | `/api/me` | Current username, organization ID and role |
 | POST | `/api/me/password` | Authenticated self-service password change (old password required) |
+| POST | `/api/team/{id}/reset-password` | ADMIN-only local MEMBER password reset, requires admin password |
 | GET | `/api/team` | Admin-only team directory for the current organization |
 | POST | `/api/team` | Admin-only creation of a MEMBER in the current organization |
 | PATCH | `/api/team/{id}/enabled` | Admin-only enable or disable member account |
@@ -69,7 +70,8 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] First role permissions: MEMBER read-only CRM, ADMIN writes and views team roster
 - [x] Admin-only local MEMBER creation and enable/disable controls
 - [x] Authenticated password change with existing password verification and PostgreSQL integration tests
-- [ ] Invitation delivery, forgotten-password reset, sessions and full granular role permissions
+- [x] Local-only admin-assisted MEMBER recovery with administrator reauthentication
+- [ ] Invitation delivery, self-service forgotten-password reset, sessions and full granular role permissions
 - [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
 - [x] Database-level organization references and tenant-safe lead foreign keys
 - [ ] Real multi-organization principal resolution and production isolation (required before user accounts)
@@ -173,3 +175,9 @@ This feature is not a forgotten-password recovery mechanism. No email sending, p
 ## Password rotation integration verification
 
 Automated Spring Security and PostgreSQL tests now verify that a successful password change stores a new encoded password, rejects the previous login credentials, and accepts the replacement credentials. Negative tests cover incorrect current passwords, reusing the currently stored password, and too-short replacements. This does **not** prevent reuse of passwords from older rotations, provide password recovery, invalidate already-running HTTP requests, or provide production sessions. No paid provider or external service is needed.
+
+## Local administrator-assisted account recovery
+
+When a MEMBER forgets their password, an ADMIN may use the Team members **Reset password** action. The admin must re-enter their own existing password and set a distinct new password (12–128 characters). The server verifies the admin again, restricts the account lookup to their organization, rejects ADMIN or disabled targets, and hashes the replacement. The API response does not contain the password. The old member password then stops working for new Basic-authenticated requests. There is no email delivery and no paid service.
+
+**This is not production-grade password recovery.** Admins must communicate the replacement through an appropriate secure channel; the application has no first-login forced password change, MFA, audit event log, per-account rate limiting or secure browser sessions. It remains bound to localhost; do not expose it or use real customer accounts. Admin recovery of their own forgotten password is not implemented.

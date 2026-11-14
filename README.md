@@ -13,6 +13,7 @@ A full-stack **customer lead management MVP** using **Java 21, Spring Boot 3, Po
 - Open lead details and update notes (up to 2000 characters)
 - Display the 50 most recent recorded lead events (creation, status and note changes)
 - Create follow-up tasks per lead, assign due dates, mark tasks complete, and view overdue work
+- View current CRM analytics: pipeline status counts, conversion rate, closed-lead win rate, task completion and overdue totals
 - Update lead status (New, Contacted, Qualified, Won, Lost)
 - REST API and persistent PostgreSQL storage
 - Docker Compose database for local development
@@ -64,7 +65,7 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [ ] CI pipeline, deployment, monitoring
 - [x] Basic searchable and filterable CRM workspace with editable lead notes
 - [x] Basic lead activity timeline for new events
-- [ ] Follow-up tasks, workflow automations and analytics
+- [ ] Workflow automations and historical analytics
 
 ## Status
 
@@ -94,3 +95,7 @@ The activity timeline records newly created leads and later status/note changes,
 ## Follow-up tasks
 
 Open a lead and create a task with a title and due date. Tasks appear in a global list with filters for open, completed or all. Unfinished tasks with due dates earlier than the browser's current local date are visually highlighted as overdue. These are **in-app reminders only**: no push notifications, emails, scheduled jobs or external services run. Tasks are not automatically deleted. This local single-admin prototype has no tenant isolation and is not suitable for production customer information.
+
+## Analytics dashboard
+
+The dashboard computes a **current snapshot** from the leads and tasks already loaded into the browser. Lead conversion = won leads / all leads; closed-lead win rate = won / (won + lost); task completion = completed / all tasks. Each percentage is 0% when its denominator is zero. It also shows lead counts by status and the number of open tasks whose due date is before the browser's current local date. This feature does not claim trends over time, financial revenue, or forecasting accuracy. For large datasets, add paginated backend reporting rather than browser-side totals.

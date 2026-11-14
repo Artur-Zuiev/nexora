@@ -52,6 +52,8 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 | POST | `/api/tasks` | Create lead follow-up |
 | PATCH | `/api/tasks/{id}/status` | Set OPEN or DONE |
 
+**Before upgrading a populated local database**, back up the PostgreSQL volume. Flyway is configured to baseline a pre-existing schema at version 1 and apply version 2; this is intended only for the known local demo schema. Do not point this configuration at an unknown or production database.
+
 The starter uses demo-only local database credentials in `docker-compose.yml` and `application.properties`. Replace these and add secrets management before any deployment.
 
 ## Roadmap
@@ -62,7 +64,8 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
 - [ ] Real multi-organization principal resolution, enforced schema constraints and production isolation (required before user accounts)
 - [x] Tenant threat model and migration plan (`docs/tenant-isolation-design.md`)
-- [ ] Flyway migrations
+- [x] Flyway V1/V2 baseline migrations for local CRM database
+- [ ] Production-grade, reviewed migration and backup/restore process
 - [ ] Unit/integration tests, Testcontainers and frontend tests
 - [x] GitHub Actions build/test checks
 - [ ] Deployment and monitoring
@@ -116,3 +119,9 @@ See [the tenant-isolation design](docs/tenant-isolation-design.md) for the requi
 All lead, task and activity lookups now use a server-resolved tenant identifier instead of accepting one supplied by the browser. The current admin maps to the **single fixed** `local-admin` organization; account registration and multi-organization membership are **not implemented**. New records receive that tenant ID. On startup, the temporary local database backfill assigns existing rows with missing tenant IDs to `local-admin` after Hibernate has updated the schema. This preserves existing demo data but is **not** a migration suitable for production: it lacks managed versioning, hard foreign keys, and verified rollback procedures. Back up your local PostgreSQL volume before updating a populated database.
 
 Repository-level unit tests verify that lead, task and activity operations reject records outside the resolved tenant and that new records receive their tenant ID. These do **not** certify isolation for multiple real authenticated organizations. Do not expose the service or use real customer data.
+
+## Flyway schema migrations (local-only)
+
+The backend now uses Flyway instead of Hibernate schema mutation. On an empty database, Flyway runs `V1__initial_crm_schema.sql` and `V2__tenant_scoping.sql`, after which Hibernate validates the resulting schema. Existing local Hibernate-generated demo databases without Flyway history are automatically baselined at V1 and then receive V2, including the `local-admin` tenant backfill. The previous startup-time backfill component has been removed. The integration test checks Flyway history and tenant columns against PostgreSQL in GitHub Actions.
+
+**Important:** automatic baselining assumes the existing database already has `leads`, `lead_tasks`, and `lead_activities` tables matching the earlier local prototype. There are no production guarantees. Take a PostgreSQL backup, rehearse restoration, and review the schema before upgrading existing data; never enable automatic baseline against an unknown database. For production, implement an explicit reviewed migration path, foreign keys, organization membership, and backup/restore tests. Application login is still single-admin only.

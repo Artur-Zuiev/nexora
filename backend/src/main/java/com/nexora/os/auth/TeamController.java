@@ -2,6 +2,7 @@ package com.nexora.os.auth;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
@@ -87,7 +88,7 @@ public class TeamController {
             @NotBlank @Size(min = 12, max = 128) String password
     ) {}
 
-    public record SetEnabled(boolean enabled) {}
+    public record SetEnabled(@NotNull Boolean enabled) {}
 
     /** Never include a user's password hash or plaintext password in responses. */
     public record TeamMember(Long id, String username, String role, boolean enabled, Instant createdAt) {

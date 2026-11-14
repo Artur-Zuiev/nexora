@@ -12,6 +12,7 @@ A full-stack **customer lead management MVP** using **Java 21, Spring Boot 3, Po
 - Search leads by name, email or note; filter by status
 - Open lead details and update notes (up to 2000 characters)
 - Display the 50 most recent recorded lead events (creation, status and note changes)
+- Create follow-up tasks per lead, assign due dates, mark tasks complete, and view overdue work
 - Update lead status (New, Contacted, Qualified, Won, Lost)
 - REST API and persistent PostgreSQL storage
 - Docker Compose database for local development
@@ -45,6 +46,10 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 | PATCH | `/api/leads/{id}/status` | Update status |
 | PATCH | `/api/leads/{id}/note` | Update note |
 | GET | `/api/leads/{id}/activities` | 50 most recent recorded events |
+| GET | `/api/tasks` | List follow-up tasks by due date |
+| GET | `/api/tasks/lead/{leadId}` | Tasks for a specific lead |
+| POST | `/api/tasks` | Create lead follow-up |
+| PATCH | `/api/tasks/{id}/status` | Set OPEN or DONE |
 
 The starter uses demo-only local database credentials in `docker-compose.yml` and `application.properties`. Replace these and add secrets management before any deployment.
 
@@ -85,3 +90,7 @@ The development-only credentials and single-admin security limitations described
 ## Lead activity history
 
 The activity timeline records newly created leads and later status/note changes, with UTC timestamps. It shows the 50 most recent events per lead, ordered newest first. It intentionally records only a short event summary and never copies customer names, email addresses, or note contents into the activity log. Existing leads won't have retrospective history; only actions taken after this feature is installed are recorded. This is a basic application event history, **not** a tamper-proof compliance audit log.
+
+## Follow-up tasks
+
+Open a lead and create a task with a title and due date. Tasks appear in a global list with filters for open, completed or all. Unfinished tasks with due dates earlier than the browser's current local date are visually highlighted as overdue. These are **in-app reminders only**: no push notifications, emails, scheduled jobs or external services run. Tasks are not automatically deleted. This local single-admin prototype has no tenant isolation and is not suitable for production customer information.

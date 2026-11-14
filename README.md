@@ -44,6 +44,8 @@ The API is available at `http://localhost:8080`; CORS allows the local Vite deve
 | --- | --- | --- |
 | GET | `/api/me` | Current username, organization ID and role |
 | GET | `/api/team` | Admin-only team directory for the current organization |
+| POST | `/api/team` | Admin-only creation of a MEMBER in the current organization |
+| PATCH | `/api/team/{id}/enabled` | Admin-only enable or disable member account |
 | GET | `/api/leads` | List leads scoped to the current user |
 | POST | `/api/leads` | Create lead |
 | PATCH | `/api/leads/{id}/status` | Update status |
@@ -64,7 +66,8 @@ The starter uses demo-only local database credentials in `docker-compose.yml` an
 - [x] Single-admin HTTP Basic for local development (not production auth)
 - [x] Database-backed users with hashed passwords and organization-aware principals (local-only)
 - [x] First role permissions: MEMBER read-only CRM, ADMIN writes and views team roster
-- [ ] Secure account provisioning, password reset, session security and full granular role permissions
+- [x] Admin-only local MEMBER creation and enable/disable controls
+- [ ] Invitation delivery, secure account provisioning, password reset, sessions and full granular role permissions
 - [x] Preliminary tenant-scoped repository and controller reads/writes for one local organization
 - [x] Database-level organization references and tenant-safe lead foreign keys
 - [ ] Real multi-organization principal resolution and production isolation (required before user accounts)
@@ -152,3 +155,9 @@ The authenticated server-side identity provides organization scope to all CRM co
 - `GET /api/team` returns only an organization's usernames, roles, account enabled flags and creation timestamps. It never returns password hashes.
 
 Role checks run in Spring Security on the server. This milestone **does not** implement invitations, creating or disabling users via API, self-registration, admin UI, password rotation, sessions or production hardening. Accounts can currently be inserted only through controlled development/testing database setup. The existing HTTP Basic login remains **local-only**, and no real customer data should be stored.
+
+## Local team management (no paid services)
+
+The admin dashboard now has a **Team members** section where an ADMIN can create a MEMBER account by entering a unique username and a password of 12–128 characters. The password is bcrypt-hashed through Spring Security before being stored in PostgreSQL. The API never returns passwords or password hashes. Username is unique across the whole local database, not only within an organization. Members have read-only CRM access. An ADMIN can disable/re-enable MEMBER accounts, with tenant-scoped server queries; disabling the current administrator or another ADMIN is rejected. Disabled users cannot log in on subsequent requests.
+
+**Important limitations:** This is a **local developer-controlled mechanism**, not email invitation delivery and not production user management. The admin must communicate an initial password through an appropriate secure channel; there is no invitation email or self-service password reset. HTTP Basic remains local-only, password rotation/first-login reset are not yet implemented, and no real customer data should be entered. Do not forward passwords in unencrypted messages or enable public access. No paid services or hosting were added.

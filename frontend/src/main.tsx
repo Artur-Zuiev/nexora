@@ -25,6 +25,9 @@ function App() {
   const [memberPassword, setMemberPassword] = useState('');
   const [teamSaving, setTeamSaving] = useState(false);
   const [teamMessage, setTeamMessage] = useState('');
+  const [resetMemberId, setResetMemberId] = useState<number | null>(null);
+  const [resetAdminPassword, setResetAdminPassword] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -81,6 +84,9 @@ function App() {
     setMemberUsername('');
     setMemberPassword('');
     setTeamMessage('');
+    setResetMemberId(null);
+    setResetAdminPassword('');
+    setResetNewPassword('');
     setPassword('');
     setCurrentPassword('');
     setNewPassword('');
@@ -248,6 +254,33 @@ function App() {
         setTeamMessage('Could not update member access.');
       }
     } finally {
+      setTeamSaving(false);
+    }
+  }
+
+  async function resetMemberPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canEdit || resetMemberId === null) return;
+    setTeamSaving(true);
+    setTeamMessage('');
+    try {
+      await api(`http://localhost:8080/api/team/${resetMemberId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminPassword: resetAdminPassword,
+          newPassword: resetNewPassword
+        })
+      });
+      setTeamMessage('Password reset. Share the new password with the member securely.');
+      setResetMemberId(null);
+    } catch (error) {
+      if (error instanceof Error && error.message !== 'Unauthorized') {
+        setTeamMessage('Reset failed. Verify your admin password, member status and new password.');
+      }
+    } finally {
+      setResetAdminPassword('');
+      setResetNewPassword('');
       setTeamSaving(false);
     }
   }
@@ -520,7 +553,7 @@ function App() {
           {teamMessage && <p role="status" className="analytics-caption">{teamMessage}</p>}
           {team.length === 0 ? <p className="empty">No team accounts loaded.</p> :
           <div className="table-wrap"><table>
-            <thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Access</th></tr></thead>
+            <thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Access</th><th>Recovery</th></tr></thead>
             <tbody>{team.map(member => <tr key={member.id}>
               <td><strong>{member.username}</strong></td>
               <td>{member.role}</td>
@@ -529,9 +562,19 @@ function App() {
                 <button type="button" disabled={teamSaving} className="secondary-button" onClick={() => void toggleMember(member)}>
                   {member.enabled ? 'Disable' : 'Enable'}
                 </button> : '—'}</td>
+              <td>{member.role === 'MEMBER' && member.enabled ?
+                <button type="button" disabled={teamSaving} className="secondary-button" onClick={() => {
+                  setResetMemberId(member.id); setResetAdminPassword(''); setResetNewPassword(''); setTeamMessage('');
+                }}>Reset password</button> : '—'}</td>
             </tr>)}</tbody>
           </table></div>}
-          <p className="analytics-caption">Local development only. New accounts have MEMBER read-only access. Share passwords securely; no invitation emails are sent.</p>
+          {resetMemberId !== null && <form className="team-create-form" onSubmit={resetMemberPassword} aria-label="Reset member password">
+            <label><span>Administrator password (confirm identity)</span><input required type="password" autoComplete="current-password" value={resetAdminPassword} onChange={e => setResetAdminPassword(e.target.value)} /></label>
+            <label><span>New member password (12+ characters)</span><input required type="password" minLength={12} maxLength={128} autoComplete="new-password" value={resetNewPassword} onChange={e => setResetNewPassword(e.target.value)} /></label>
+            <button disabled={teamSaving} type="submit">Confirm password reset</button>
+            <button type="button" className="secondary-button" onClick={() => {setResetMemberId(null);setResetAdminPassword('');setResetNewPassword('');}}>Cancel</button>
+          </form>}
+          <p className="analytics-caption">Local development only. Account recovery requires your administrator password. Share replacements securely; no email is sent.</p>
         </section>}
         {selected && <section className="panel lead-detail" aria-label="Lead details">
           <div className="panel-header">

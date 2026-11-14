@@ -24,8 +24,8 @@ public class LeadController {
     }
 
     @GetMapping
-    public List<Lead> all() {
-        return repository.findAll();
+    public List<LeadResponse> all() {
+        return repository.findAll().stream().map(LeadResponse::from).toList();
     }
 
     @GetMapping("/{id}/activities")
@@ -39,7 +39,7 @@ public class LeadController {
 
     @PostMapping
     @Transactional
-    public ResponseEntity<Lead> create(@Valid @RequestBody CreateLeadRequest request) {
+    public ResponseEntity<LeadResponse> create(@Valid @RequestBody CreateLeadRequest request) {
         Lead lead = new Lead();
         lead.name = request.name().trim();
         lead.email = request.email().trim();
@@ -47,12 +47,12 @@ public class LeadController {
         lead.status = Lead.Status.NEW;
         Lead saved = repository.save(lead);
         activities.save(LeadActivity.of(saved.id, LeadActivity.Kind.CREATED, "Lead created"));
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        return ResponseEntity.status(HttpStatus.CREATED).body(LeadResponse.from(saved));
     }
 
     @PatchMapping("/{id}/status")
     @Transactional
-    public Lead changeStatus(@PathVariable Long id, @Valid @RequestBody StatusUpdate update) {
+    public LeadResponse changeStatus(@PathVariable Long id, @Valid @RequestBody StatusUpdate update) {
         Lead lead = findLead(id);
         if (!Objects.equals(lead.status, update.status())) {
             Lead.Status previous = lead.status;
@@ -60,12 +60,12 @@ public class LeadController {
             activities.save(LeadActivity.of(id, LeadActivity.Kind.STATUS_CHANGED,
                     "Status: " + previous + " → " + update.status()));
         }
-        return repository.save(lead);
+        return LeadResponse.from(repository.save(lead));
     }
 
     @PatchMapping("/{id}/note")
     @Transactional
-    public Lead updateNote(@PathVariable Long id, @Valid @RequestBody NoteUpdate update) {
+    public LeadResponse updateNote(@PathVariable Long id, @Valid @RequestBody NoteUpdate update) {
         Lead lead = findLead(id);
         if (!Objects.equals(lead.note == null ? "" : lead.note, update.note())) {
             lead.note = update.note();

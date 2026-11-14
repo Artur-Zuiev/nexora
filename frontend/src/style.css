@@ -66,3 +66,8 @@ button:disabled{opacity:.56;cursor:not-allowed}
 .read-only-note{border-top:1px solid #e5eaf2;padding-top:18px;margin-top:20px}
 .read-only-note h3{font-size:14px;color:#51617a}
 .read-only-note p{white-space:pre-wrap;overflow-wrap:anywhere}
+
+.team-create-form{display:grid;grid-template-columns:minmax(150px,1fr) minmax(180px,1fr) auto;align-items:end;gap:13px;margin:0 0 23px}
+.team-create-form label{display:grid;gap:6px;font-size:12px;color:#61718a}
+.team-create-form input{width:100%}
+@media(max-width:800px){.team-create-form{grid-template-columns:1fr}.team-create-form button{width:100%}}

@@ -87,6 +87,16 @@ class SessionAuthenticationIntegrationTest {
     }
 
     @Test
+    void changingStoredPasswordInvalidatesExistingSession() throws Exception {
+        String username = createUser();
+        LoginContext login = login(username, "session-test-password-123");
+        jdbc.update("UPDATE app_users SET password_hash = ? WHERE username = ?",
+                encoder.encode("rotated-session-password-456"), username);
+        mvc.perform(get("/api/me").session(login.session()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void wrongPasswordRejectedEvenWithValidCsrf() throws Exception {
         String username = createUser();
         MvcResult result = mvc.perform(get("/api/session/csrf"))

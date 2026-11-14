@@ -1,15 +1,15 @@
 package com.nexora.os.config;
 
+import com.nexora.os.auth.NexoraPrincipal;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 /**
- * Local-only tenancy boundary. Do NOT use a client-supplied tenant identifier.
- * Replace the fixed mapping with an authenticated organization membership
- * before enabling multiple accounts.
+ * Resolves the tenant strictly from the authenticated database identity.
+ * Never use a request parameter/body as the organization selection source.
  */
 @Component
 public class CurrentTenant {
@@ -17,9 +17,10 @@ public class CurrentTenant {
 
     public String id() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || !auth.getName().equals("admin")) {
+        if (auth == null || !auth.isAuthenticated()
+                || !(auth.getPrincipal() instanceof NexoraPrincipal principal)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required");
         }
-        return LOCAL_ORGANIZATION;
+        return principal.tenantId();
     }
 }

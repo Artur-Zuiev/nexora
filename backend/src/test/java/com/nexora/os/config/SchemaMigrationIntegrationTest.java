@@ -8,7 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** On a fresh CI PostgreSQL instance, Spring Boot must apply V1, V2 and V3 before startup. */
+/** On a fresh CI PostgreSQL instance, Spring Boot must apply V1 through V4 before startup. */
 @SpringBootTest(properties = "NEXORA_ADMIN_PASSWORD=integration-test-secret-123")
 class SchemaMigrationIntegrationTest {
     @Autowired
@@ -29,8 +29,8 @@ class SchemaMigrationIntegrationTest {
     void expectedMigrationsAreRecorded() {
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history " +
-                "WHERE version IN ('1','2','3') AND success = true",
+                "WHERE version IN ('1','2','3','4') AND success = true",
                 Integer.class);
-        assertTrue(count != null && count >= 3);
+        assertTrue(count != null && count >= 4);
     }
 }

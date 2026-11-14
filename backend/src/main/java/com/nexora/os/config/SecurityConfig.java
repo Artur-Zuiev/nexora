@@ -1,18 +1,18 @@
 package com.nexora.os.config;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.nexora.os.auth.AppUserRepository;
+import com.nexora.os.auth.NexoraPrincipal;
+import java.util.Locale;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.util.StringUtils;
 
 @Configuration
 public class SecurityConfig {
@@ -22,22 +22,17 @@ public class SecurityConfig {
     }
 
     @Bean
-    UserDetailsService userDetailsService(
-            @Value("${NEXORA_ADMIN_PASSWORD:}") String password,
-            PasswordEncoder encoder) {
-        if (!StringUtils.hasText(password) || password.length() < 12) {
-            throw new IllegalStateException("Set NEXORA_ADMIN_PASSWORD to a non-empty password of at least 12 characters");
-        }
-        return new InMemoryUserDetailsManager(
-                User.withUsername("admin").password(encoder.encode(password)).roles("ADMIN").build()
-        );
+    UserDetailsService userDetailsService(AppUserRepository users) {
+        return username -> users.findByUsername(username.trim().toLowerCase(Locale.ROOT))
+                .map(NexoraPrincipal::new)
+                .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
     }
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
-                .csrf(csrf -> csrf.disable()) // Stateless JSON API; clients send explicit Authorization headers.
+                .csrf(csrf -> csrf.disable()) // Local prototype with explicit HTTP Basic headers only.
                 .sessionManagement(session -> session.sessionCreationPolicy(
                         org.springframework.security.config.http.SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth

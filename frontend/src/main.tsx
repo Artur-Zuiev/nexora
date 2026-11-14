@@ -133,6 +133,11 @@ function App() {
     setLoading(true);
     try {
       const response = await fetch(API, { headers: { Authorization: `Basic ${encoded}` } });
+      if (response.status === 429) {
+        const retry = response.headers.get('Retry-After');
+        setAuthError(`Too many failed sign-in attempts. Try again in about ${retry ? Math.ceil(Number(retry) / 60) : 15} minutes.`);
+        return;
+      }
       if (!response.ok) throw new Error('Invalid credentials');
       const accountResponse = await fetch('http://localhost:8080/api/me', {
         headers: { Authorization: `Basic ${encoded}` }
